@@ -1,25 +1,47 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
-import { listNotes } from "@/lib/note/repository";
+import { deleteNote, listNotes } from "@/lib/note/repository";
 import type { NoteListItem } from "@/lib/types/note";
 
 export default function NotesListPage() {
   const auth = useNoteAuth();
   const [items, setItems] = useState<NoteListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const ownerId = auth.status === "ready" ? auth.ownerId : null;
 
-  useEffect(() => {
+  const loadList = useCallback(() => {
     if (!ownerId) return;
     setLoading(true);
     void listNotes(ownerId)
       .then(setItems)
       .finally(() => setLoading(false));
   }, [ownerId]);
+
+  useEffect(() => {
+    loadList();
+  }, [loadList]);
+
+  const handleDelete = useCallback(
+    async (noteId: string) => {
+      if (!ownerId) return;
+      if (!window.confirm("このノートを削除しますか？")) return;
+      setDeletingId(noteId);
+      try {
+        await deleteNote(noteId, ownerId);
+        setItems((prev) => prev.filter((x) => x.id !== noteId));
+      } catch {
+        window.alert("削除に失敗しました。もう一度お試しください。");
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [ownerId],
+  );
 
   return (
     <div className="min-h-dvh bg-zinc-950 text-zinc-100">
@@ -48,10 +70,10 @@ export default function NotesListPage() {
         ) : (
           <ul className="divide-y divide-teal-900/40 rounded-xl border border-teal-900/40 bg-teal-950/20">
             {items.map((n) => (
-              <li key={n.id}>
+              <li key={n.id} className="flex items-stretch">
                 <Link
                   href={`/notes/edit?id=${encodeURIComponent(n.id)}`}
-                  className="block px-4 py-3 hover:bg-teal-900/30"
+                  className="min-w-0 flex-1 px-4 py-3 hover:bg-teal-900/30"
                 >
                   <div className="font-medium text-zinc-100">
                     {n.preview || "（無題）"}
@@ -63,6 +85,17 @@ export default function NotesListPage() {
                     })}
                   </div>
                 </Link>
+                <div className="flex shrink-0 items-center border-l border-teal-900/40 px-2">
+                  <button
+                    type="button"
+                    disabled={deletingId === n.id}
+                    className="rounded-md px-3 py-2 text-sm text-red-300 hover:bg-red-950/50 disabled:opacity-50"
+                    aria-label={`「${n.preview || "無題"}」を削除`}
+                    onClick={() => void handleDelete(n.id)}
+                  >
+                    {deletingId === n.id ? "削除中…" : "削除"}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

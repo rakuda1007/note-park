@@ -77,6 +77,21 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     });
   }, []);
 
+  /** 起動直後にメモ入力へフォーカス（モバイル・PWA でも効くよう複数回試行） */
+  useEffect(() => {
+    if (mode !== "new" || loadingNote) return;
+    if (auth.status !== "ready") return;
+    const run = () => focusLine(0, 0);
+    run();
+    const t1 = window.setTimeout(run, 50);
+    const t2 = window.setTimeout(run, 300);
+    const raf = requestAnimationFrame(() => requestAnimationFrame(run));
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      cancelAnimationFrame(raf);
+    };
+  }, [mode, loadingNote, auth.status, focusLine]);
   useEffect(() => {
     if (mode !== "new") return;
     setTitle("");
@@ -307,13 +322,13 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
           className="min-h-11 flex-1 border-none bg-transparent py-2 text-base text-zinc-100 outline-none placeholder:text-zinc-500"
           placeholder={index === 0 ? "メモを入力…" : ""}
           value={line.text}
-          autoFocus={mode === "new" && index === 0}
+          enterKeyHint={index === lines.length - 1 ? "enter" : "next"}
           onChange={(e) => updateLine(index, { text: e.target.value })}
           onKeyDown={(e) => onLineKeyDown(index, e)}
         />
       </div>
     ));
-  }, [lines, mode, onLineKeyDown, toggleChecked, updateLine]);
+  }, [lines, onLineKeyDown, toggleChecked, updateLine]);
 
   const statusBanner = useMemo(() => {
     if (auth.status === "loading") {
@@ -377,7 +392,8 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
           <p className="text-zinc-400">読み込み中…</p>
         ) : (
           <>
-            <div className="mb-4 space-y-2">
+            <div className="space-y-1">{lineInputs}</div>
+            <div className="mt-6 space-y-2">
               <label className="block text-xs font-medium uppercase tracking-wide text-zinc-500">
                 タイトル（あとから）
               </label>
@@ -388,8 +404,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
                 onChange={(e) => setTitle(e.target.value)}
               />
             </div>
-            {statusBanner}
-            <div className="mt-6 space-y-1">{lineInputs}</div>
+            <div className="mt-4">{statusBanner}</div>
           </>
         )}
       </main>
