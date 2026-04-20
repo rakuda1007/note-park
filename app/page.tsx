@@ -1,5 +1,5 @@
-import NoteEditor from "@/components/NoteEditor";
+import HomeClient from "./HomeClient";
 
 export default function Home() {
-  return <NoteEditor mode="new" />;
+  return <HomeClient />;
 }

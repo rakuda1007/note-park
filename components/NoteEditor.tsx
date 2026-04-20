@@ -77,21 +77,30 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     });
   }, []);
 
-  /** 起動直後にメモ入力へフォーカス（モバイル・PWA でも効くよう複数回試行） */
+  /** 起動直後にメモ入力へフォーカス（認証待ちに依存しない・複数回試行） */
+  useEffect(() => {
+    if (mode !== "new" || loadingNote) return;
+    const run = () => focusLine(0, 0);
+    run();
+    const t0 = window.setTimeout(run, 0);
+    const t1 = window.setTimeout(run, 50);
+    const t2 = window.setTimeout(run, 150);
+    const t3 = window.setTimeout(run, 400);
+    const raf = requestAnimationFrame(() => requestAnimationFrame(run));
+    return () => {
+      window.clearTimeout(t0);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+      cancelAnimationFrame(raf);
+    };
+  }, [mode, loadingNote, focusLine]);
+
   useEffect(() => {
     if (mode !== "new" || loadingNote) return;
     if (auth.status !== "ready") return;
-    const run = () => focusLine(0, 0);
-    run();
-    const t1 = window.setTimeout(run, 50);
-    const t2 = window.setTimeout(run, 300);
-    const raf = requestAnimationFrame(() => requestAnimationFrame(run));
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      cancelAnimationFrame(raf);
-    };
-  }, [mode, loadingNote, auth.status, focusLine]);
+    focusLine(0, 0);
+  }, [auth.status, mode, loadingNote, focusLine]);
   useEffect(() => {
     if (mode !== "new") return;
     setTitle("");
@@ -319,16 +328,24 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
           ref={(el) => {
             inputRefs.current[index] = el;
           }}
-          className="min-h-11 flex-1 border-none bg-transparent py-2 text-base text-zinc-100 outline-none placeholder:text-zinc-500"
+          id={index === 0 ? "note-park-first-line" : undefined}
+          name={index === 0 ? "note" : undefined}
+          type="text"
+          inputMode="text"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          className="min-h-11 flex-1 border-none bg-transparent py-2 text-base text-zinc-100 caret-teal-400 outline-none placeholder:text-zinc-500"
           placeholder={index === 0 ? "メモを入力…" : ""}
           value={line.text}
+          autoFocus={mode === "new" && index === 0}
           enterKeyHint={index === lines.length - 1 ? "enter" : "next"}
           onChange={(e) => updateLine(index, { text: e.target.value })}
           onKeyDown={(e) => onLineKeyDown(index, e)}
         />
       </div>
     ));
-  }, [lines, onLineKeyDown, toggleChecked, updateLine]);
+  }, [lines, mode, onLineKeyDown, toggleChecked, updateLine]);
 
   const statusBanner = useMemo(() => {
     if (auth.status === "loading") {
