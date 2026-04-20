@@ -50,7 +50,7 @@ export default function NotesListPage() {
             {items.map((n) => (
               <li key={n.id}>
                 <Link
-                  href={`/notes/${n.id}`}
+                  href={`/notes/edit?id=${encodeURIComponent(n.id)}`}
                   className="block px-4 py-3 hover:bg-teal-900/30"
                 >
                   <div className="font-medium text-zinc-100">
