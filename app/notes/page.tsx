@@ -146,21 +146,35 @@ export default function NotesListPage() {
               <ul className="divide-y divide-teal-900/40 overflow-x-hidden rounded-xl border border-teal-900/40 bg-teal-950/20">
                 {filteredItems.map((n) => {
                   const titleText = n.title.trim();
-                  const labelForA11y = [titleText || "無題", n.preview].filter(Boolean).join(" ");
+                  const hasBody = n.preview.trim().length > 0;
+                  const hasTitle = titleText.length > 0;
+                  const labelForA11y =
+                    [n.preview, titleText].filter((s) => s.trim()).join(" ").slice(0, 80) ||
+                    "無題";
                   return (
                   <li key={n.id} className="flex min-w-0 items-stretch">
                     <Link
                       href={`/notes/edit?id=${encodeURIComponent(n.id)}`}
                       className="min-w-0 flex-1 overflow-hidden px-3 py-3 pr-2 hover:bg-teal-900/30 active:bg-teal-900/40 sm:px-4"
                     >
-                      <div className="line-clamp-2 break-words font-medium leading-snug text-zinc-100">
-                        {titleText || "（無題）"}
-                      </div>
-                      {n.preview ? (
-                        <div className="mt-1 line-clamp-2 break-words text-sm leading-snug text-zinc-400">
-                          {n.preview}
+                      {hasBody ? (
+                        <>
+                          <div className="line-clamp-3 break-words text-base font-medium leading-snug text-zinc-100">
+                            {n.preview}
+                          </div>
+                          {hasTitle ? (
+                            <div className="mt-1.5">
+                              <span className="inline-flex max-w-full rounded-md border border-teal-800/40 bg-teal-950/60 px-2 py-0.5 text-xs font-normal leading-tight text-zinc-500 line-clamp-1 break-words">
+                                {titleText}
+                              </span>
+                            </div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <div className="line-clamp-2 break-words text-base font-medium leading-snug text-zinc-100">
+                          {hasTitle ? titleText : "（無題）"}
                         </div>
-                      ) : null}
+                      )}
                       <div className="mt-1.5 text-xs text-zinc-500">
                         {new Date(n.updatedAt).toLocaleString("ja-JP", {
                           dateStyle: "short",
@@ -173,7 +187,7 @@ export default function NotesListPage() {
                         type="button"
                         disabled={deletingId === n.id}
                         className="h-full w-full px-2 py-3 text-sm font-medium text-red-300 hover:bg-red-950/40 disabled:opacity-50 sm:px-3"
-                        aria-label={`「${labelForA11y.slice(0, 80)}」を削除`}
+                        aria-label={`「${labelForA11y}」を削除`}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();

@@ -413,7 +413,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
                 タイトル（あとから）
               </label>
               <input
-                className="w-full rounded-lg border border-teal-900/50 bg-teal-950/30 px-3 py-2 text-sm text-zinc-100 outline-none ring-teal-600/40 placeholder:text-zinc-600 focus:ring-2"
+                className="w-full rounded-lg border border-teal-900/50 bg-teal-950/30 px-3 py-2 text-base text-zinc-100 outline-none ring-teal-600/40 placeholder:text-zinc-600 focus:ring-2"
                 placeholder="無題のノート"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
