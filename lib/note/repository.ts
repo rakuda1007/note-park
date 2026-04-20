@@ -53,6 +53,19 @@ function previewFromLines(lines: NoteLine[]): string {
   return "";
 }
 
+function lineCheckFlags(lines: NoteLine[]): {
+  hasUncheckedLines: boolean;
+  hasCheckedLines: boolean;
+} {
+  let hasUncheckedLines = false;
+  let hasCheckedLines = false;
+  for (const l of lines) {
+    if (l.checked) hasCheckedLines = true;
+    else hasUncheckedLines = true;
+  }
+  return { hasUncheckedLines, hasCheckedLines };
+}
+
 export async function fetchNote(
   noteId: string,
   ownerId: string,
@@ -97,11 +110,13 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
       const data = d.data();
       const lines = (data.lines as NoteLine[] | undefined) ?? [];
       const title = typeof data.title === "string" ? data.title : "";
+      const flags = lineCheckFlags(lines);
       return {
         id: d.id,
         title,
         preview: title.trim() || previewFromLines(lines),
         updatedAt: timestampToMs(data.updatedAt),
+        ...flags,
       };
     });
   }
@@ -110,12 +125,16 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
   return Object.values(all)
     .filter((n) => n.ownerId === ownerId)
     .sort((a, b) => b.updatedAt - a.updatedAt)
-    .map((n) => ({
-      id: n.id,
-      title: n.title,
-      preview: n.title.trim() || previewFromLines(n.lines),
-      updatedAt: n.updatedAt,
-    }));
+    .map((n) => {
+      const flags = lineCheckFlags(n.lines);
+      return {
+        id: n.id,
+        title: n.title,
+        preview: n.title.trim() || previewFromLines(n.lines),
+        updatedAt: n.updatedAt,
+        ...flags,
+      };
+    });
 }
 
 export async function createNote(ownerId: string, payload: NotePayload): Promise<string> {

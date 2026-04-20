@@ -13,4 +13,8 @@ export type NoteListItem = {
   title: string;
   preview: string;
   updatedAt: number;
+  /** 未チェックの行が1行でもある */
+  hasUncheckedLines: boolean;
+  /** チェック済みの行が1行でもある */
+  hasCheckedLines: boolean;
 };

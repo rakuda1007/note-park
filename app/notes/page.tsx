@@ -7,23 +7,34 @@ import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
 import { deleteNote, listNotes } from "@/lib/note/repository";
 import type { NoteListItem } from "@/lib/types/note";
 
+type LineFilter = "all" | "checked" | "unchecked";
+
 export default function NotesListPage() {
   const auth = useNoteAuth();
   const [items, setItems] = useState<NoteListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [listSearch, setListSearch] = useState("");
+  const [lineFilter, setLineFilter] = useState<LineFilter>("all");
   const ownerId = auth.status === "ready" ? auth.ownerId : null;
 
   const filteredItems = useMemo(() => {
     const q = listSearch.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
-      (n) =>
-        (n.title || "").toLowerCase().includes(q) ||
-        (n.preview || "").toLowerCase().includes(q),
-    );
-  }, [items, listSearch]);
+    let next = items;
+    if (q) {
+      next = next.filter(
+        (n) =>
+          (n.title || "").toLowerCase().includes(q) ||
+          (n.preview || "").toLowerCase().includes(q),
+      );
+    }
+    if (lineFilter === "unchecked") {
+      next = next.filter((n) => n.hasUncheckedLines);
+    } else if (lineFilter === "checked") {
+      next = next.filter((n) => n.hasCheckedLines);
+    }
+    return next;
+  }, [items, listSearch, lineFilter]);
 
   const loadList = useCallback(() => {
     if (!ownerId) return;
@@ -80,30 +91,57 @@ export default function NotesListPage() {
           <p className="text-zinc-500">まだノートがありません。</p>
         ) : (
           <>
-            <div className="mb-3">
-              <label htmlFor="notes-list-search" className="sr-only">
-                ノートを検索
-              </label>
-              <input
-                id="notes-list-search"
-                type="search"
-                inputMode="search"
-                enterKeyHint="search"
-                autoComplete="off"
-                placeholder="タイトル・本文の冒頭で検索…"
-                value={listSearch}
-                onChange={(e) => setListSearch(e.target.value)}
-                className="w-full rounded-lg border border-teal-900/50 bg-teal-950/30 px-3 py-2 text-sm text-zinc-100 outline-none ring-teal-600/40 placeholder:text-zinc-600 focus:ring-2"
-              />
-              {listSearch.trim() ? (
-                <p className="mt-2 text-xs text-zinc-500">
+            <div className="mb-3 space-y-3">
+              <div>
+                <label htmlFor="notes-list-search" className="sr-only">
+                  ノートを検索
+                </label>
+                <input
+                  id="notes-list-search"
+                  type="search"
+                  inputMode="search"
+                  enterKeyHint="search"
+                  autoComplete="off"
+                  placeholder="タイトル・本文の冒頭で検索…"
+                  value={listSearch}
+                  onChange={(e) => setListSearch(e.target.value)}
+                  className="w-full rounded-lg border border-teal-900/50 bg-teal-950/30 px-3 py-2 text-sm text-zinc-100 outline-none ring-teal-600/40 placeholder:text-zinc-600 focus:ring-2"
+                />
+              </div>
+              <div>
+                <span className="sr-only">行のチェック状態で絞り込み</span>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      { key: "all" as const, label: "すべて" },
+                      { key: "unchecked" as const, label: "未チェック" },
+                      { key: "checked" as const, label: "チェック済み" },
+                    ] as const
+                  ).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${
+                        lineFilter === key
+                          ? "bg-teal-700 text-white"
+                          : "bg-teal-950/60 text-zinc-400 hover:bg-teal-900/50"
+                      }`}
+                      onClick={() => setLineFilter(key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {listSearch.trim() || lineFilter !== "all" ? (
+                <p className="text-xs text-zinc-500">
                   {filteredItems.length} 件表示
                   {filteredItems.length === 0 ? "（一致なし）" : ""}
                 </p>
               ) : null}
             </div>
             {filteredItems.length === 0 ? (
-              <p className="text-zinc-500">検索に一致するノートがありません。</p>
+              <p className="text-zinc-500">条件に一致するノートがありません。</p>
             ) : (
               <ul className="divide-y divide-teal-900/40 rounded-xl border border-teal-900/40 bg-teal-950/20">
                 {filteredItems.map((n) => (
