@@ -70,10 +70,10 @@ export default function NotesListPage() {
         ) : (
           <ul className="divide-y divide-teal-900/40 rounded-xl border border-teal-900/40 bg-teal-950/20">
             {items.map((n) => (
-              <li key={n.id} className="flex items-stretch">
+              <li key={n.id} className="flex flex-col sm:flex-row sm:items-stretch">
                 <Link
                   href={`/notes/edit?id=${encodeURIComponent(n.id)}`}
-                  className="min-w-0 flex-1 px-4 py-3 hover:bg-teal-900/30"
+                  className="min-w-0 flex-1 px-4 py-3 hover:bg-teal-900/30 active:bg-teal-900/40"
                 >
                   <div className="font-medium text-zinc-100">
                     {n.preview || "（無題）"}
@@ -85,13 +85,16 @@ export default function NotesListPage() {
                     })}
                   </div>
                 </Link>
-                <div className="flex shrink-0 items-center border-l border-teal-900/40 px-2">
+                <div className="flex shrink-0 items-stretch border-t border-teal-900/40 sm:border-l sm:border-t-0">
                   <button
                     type="button"
                     disabled={deletingId === n.id}
-                    className="rounded-md px-3 py-2 text-sm text-red-300 hover:bg-red-950/50 disabled:opacity-50"
+                    className="w-full px-4 py-3 text-sm font-medium text-red-300 hover:bg-red-950/40 disabled:opacity-50 sm:w-auto sm:px-4"
                     aria-label={`「${n.preview || "無題"}」を削除`}
-                    onClick={() => void handleDelete(n.id)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void handleDelete(n.id);
+                    }}
                   >
                     {deletingId === n.id ? "削除中…" : "削除"}
                   </button>
