@@ -1,0 +1,5 @@
+# Firebase App Hosting（https://firebase.google.com/docs/app-hosting/configure）
+# 実運用では runConfig / env / scripts などを有効化し、シークレットは Cloud Secret Manager 連携を推奨。
+runConfig:
+  minInstances: 0
+  maxInstances: 100

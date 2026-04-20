@@ -1,0 +1,10 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 開発初期はすべて拒否。パス設計と認証ルールを決めてから match を細かく分けてください。
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
