@@ -47,10 +47,13 @@ function timestampToMs(value: unknown): number {
   return Date.now();
 }
 
+/** 一覧・検索用の本文抜粋（タイトルは含めない） */
 function previewFromLines(lines: NoteLine[]): string {
-  const first = lines.find((l) => l.text.trim().length > 0);
-  if (first) return first.text.trim().slice(0, 80);
-  return "";
+  const joined = lines
+    .map((l) => l.text.trim())
+    .filter(Boolean)
+    .join(" ");
+  return joined.slice(0, 200);
 }
 
 function lineCheckFlags(lines: NoteLine[]): {
@@ -114,7 +117,7 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
       return {
         id: d.id,
         title,
-        preview: title.trim() || previewFromLines(lines),
+        preview: previewFromLines(lines),
         updatedAt: timestampToMs(data.updatedAt),
         ...flags,
       };
@@ -130,7 +133,7 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
       return {
         id: n.id,
         title: n.title,
-        preview: n.title.trim() || previewFromLines(n.lines),
+        preview: previewFromLines(n.lines),
         updatedAt: n.updatedAt,
         ...flags,
       };

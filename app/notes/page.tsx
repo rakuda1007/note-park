@@ -143,17 +143,25 @@ export default function NotesListPage() {
             {filteredItems.length === 0 ? (
               <p className="text-zinc-500">条件に一致するノートがありません。</p>
             ) : (
-              <ul className="divide-y divide-teal-900/40 rounded-xl border border-teal-900/40 bg-teal-950/20">
-                {filteredItems.map((n) => (
-                  <li key={n.id} className="flex items-stretch">
+              <ul className="divide-y divide-teal-900/40 overflow-x-hidden rounded-xl border border-teal-900/40 bg-teal-950/20">
+                {filteredItems.map((n) => {
+                  const titleText = n.title.trim();
+                  const labelForA11y = [titleText || "無題", n.preview].filter(Boolean).join(" ");
+                  return (
+                  <li key={n.id} className="flex min-w-0 items-stretch">
                     <Link
                       href={`/notes/edit?id=${encodeURIComponent(n.id)}`}
-                      className="min-w-0 flex-1 px-3 py-3 pr-2 hover:bg-teal-900/30 active:bg-teal-900/40 sm:px-4"
+                      className="min-w-0 flex-1 overflow-hidden px-3 py-3 pr-2 hover:bg-teal-900/30 active:bg-teal-900/40 sm:px-4"
                     >
-                      <div className="font-medium text-zinc-100">
-                        {n.preview || "（無題）"}
+                      <div className="line-clamp-2 break-words font-medium leading-snug text-zinc-100">
+                        {titleText || "（無題）"}
                       </div>
-                      <div className="mt-1 text-xs text-zinc-500">
+                      {n.preview ? (
+                        <div className="mt-1 line-clamp-2 break-words text-sm leading-snug text-zinc-400">
+                          {n.preview}
+                        </div>
+                      ) : null}
+                      <div className="mt-1.5 text-xs text-zinc-500">
                         {new Date(n.updatedAt).toLocaleString("ja-JP", {
                           dateStyle: "short",
                           timeStyle: "short",
@@ -165,7 +173,7 @@ export default function NotesListPage() {
                         type="button"
                         disabled={deletingId === n.id}
                         className="h-full w-full px-2 py-3 text-sm font-medium text-red-300 hover:bg-red-950/40 disabled:opacity-50 sm:px-3"
-                        aria-label={`「${n.preview || "無題"}」を削除`}
+                        aria-label={`「${labelForA11y.slice(0, 80)}」を削除`}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -176,7 +184,8 @@ export default function NotesListPage() {
                       </button>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </>

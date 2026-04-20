@@ -11,6 +11,7 @@ export type NotePayload = {
 export type NoteListItem = {
   id: string;
   title: string;
+  /** 本文の冒頭（行をつないだ抜粋・検索用。タイトルとは別） */
   preview: string;
   updatedAt: number;
   /** 未チェックの行が1行でもある */
