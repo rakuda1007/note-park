@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
 import { deleteNote, listNotes } from "@/lib/note/repository";
@@ -12,7 +12,18 @@ export default function NotesListPage() {
   const [items, setItems] = useState<NoteListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [listSearch, setListSearch] = useState("");
   const ownerId = auth.status === "ready" ? auth.ownerId : null;
+
+  const filteredItems = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (n) =>
+        (n.title || "").toLowerCase().includes(q) ||
+        (n.preview || "").toLowerCase().includes(q),
+    );
+  }, [items, listSearch]);
 
   const loadList = useCallback(() => {
     if (!ownerId) return;
@@ -68,41 +79,69 @@ export default function NotesListPage() {
         ) : items.length === 0 ? (
           <p className="text-zinc-500">まだノートがありません。</p>
         ) : (
-          <ul className="divide-y divide-teal-900/40 rounded-xl border border-teal-900/40 bg-teal-950/20">
-            {items.map((n) => (
-              <li key={n.id} className="flex items-stretch">
-                <Link
-                  href={`/notes/edit?id=${encodeURIComponent(n.id)}`}
-                  className="min-w-0 flex-1 px-3 py-3 pr-2 hover:bg-teal-900/30 active:bg-teal-900/40 sm:px-4"
-                >
-                  <div className="font-medium text-zinc-100">
-                    {n.preview || "（無題）"}
-                  </div>
-                  <div className="mt-1 text-xs text-zinc-500">
-                    {new Date(n.updatedAt).toLocaleString("ja-JP", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </div>
-                </Link>
-                <div className="flex w-[4.5rem] shrink-0 items-center justify-center border-l border-teal-900/40 sm:w-auto sm:min-w-[5rem]">
-                  <button
-                    type="button"
-                    disabled={deletingId === n.id}
-                    className="h-full w-full px-2 py-3 text-sm font-medium text-red-300 hover:bg-red-950/40 disabled:opacity-50 sm:px-3"
-                    aria-label={`「${n.preview || "無題"}」を削除`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void handleDelete(n.id);
-                    }}
-                  >
-                    {deletingId === n.id ? "…" : "削除"}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <>
+            <div className="mb-3">
+              <label htmlFor="notes-list-search" className="sr-only">
+                ノートを検索
+              </label>
+              <input
+                id="notes-list-search"
+                type="search"
+                inputMode="search"
+                enterKeyHint="search"
+                autoComplete="off"
+                placeholder="タイトル・本文の冒頭で検索…"
+                value={listSearch}
+                onChange={(e) => setListSearch(e.target.value)}
+                className="w-full rounded-lg border border-teal-900/50 bg-teal-950/30 px-3 py-2 text-sm text-zinc-100 outline-none ring-teal-600/40 placeholder:text-zinc-600 focus:ring-2"
+              />
+              {listSearch.trim() ? (
+                <p className="mt-2 text-xs text-zinc-500">
+                  {filteredItems.length} 件表示
+                  {filteredItems.length === 0 ? "（一致なし）" : ""}
+                </p>
+              ) : null}
+            </div>
+            {filteredItems.length === 0 ? (
+              <p className="text-zinc-500">検索に一致するノートがありません。</p>
+            ) : (
+              <ul className="divide-y divide-teal-900/40 rounded-xl border border-teal-900/40 bg-teal-950/20">
+                {filteredItems.map((n) => (
+                  <li key={n.id} className="flex items-stretch">
+                    <Link
+                      href={`/notes/edit?id=${encodeURIComponent(n.id)}`}
+                      className="min-w-0 flex-1 px-3 py-3 pr-2 hover:bg-teal-900/30 active:bg-teal-900/40 sm:px-4"
+                    >
+                      <div className="font-medium text-zinc-100">
+                        {n.preview || "（無題）"}
+                      </div>
+                      <div className="mt-1 text-xs text-zinc-500">
+                        {new Date(n.updatedAt).toLocaleString("ja-JP", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </div>
+                    </Link>
+                    <div className="flex w-[4.5rem] shrink-0 items-center justify-center border-l border-teal-900/40 sm:w-auto sm:min-w-[5rem]">
+                      <button
+                        type="button"
+                        disabled={deletingId === n.id}
+                        className="h-full w-full px-2 py-3 text-sm font-medium text-red-300 hover:bg-red-950/40 disabled:opacity-50 sm:px-3"
+                        aria-label={`「${n.preview || "無題"}」を削除`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void handleDelete(n.id);
+                        }}
+                      >
+                        {deletingId === n.id ? "…" : "削除"}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </main>
     </div>

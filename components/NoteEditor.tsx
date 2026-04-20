@@ -42,6 +42,8 @@ function hasMeaningfulContent(lines: InternalLine[], title: string): boolean {
 
 const AUTOSAVE_MS = 1200;
 
+type LineFilter = "all" | "checked" | "unchecked";
+
 type Props = {
   mode: "new" | "edit";
   initialNoteId?: string;
@@ -52,6 +54,8 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   const auth = useNoteAuth();
   const [title, setTitle] = useState("");
   const [lines, setLines] = useState<InternalLine[]>(() => [newEmptyLine()]);
+  const [lineFilter, setLineFilter] = useState<LineFilter>("all");
+  const [lineSearch, setLineSearch] = useState("");
   const [remoteId, setRemoteId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingNote, setLoadingNote] = useState(mode === "edit");
@@ -307,8 +311,20 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     });
   }, []);
 
+  const visibleLineEntries = useMemo(() => {
+    const q = lineSearch.trim().toLowerCase();
+    return lines
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => {
+        if (lineFilter === "checked" && !line.checked) return false;
+        if (lineFilter === "unchecked" && line.checked) return false;
+        if (q && !line.text.toLowerCase().includes(q)) return false;
+        return true;
+      });
+  }, [lines, lineFilter, lineSearch]);
+
   const lineInputs = useMemo(() => {
-    return lines.map((line, index) => (
+    return visibleLineEntries.map(({ line, index: realIndex }) => (
       <div
         key={line.id}
         className="flex items-start gap-2 rounded-lg border border-transparent px-1 py-0.5 hover:border-teal-800/40 focus-within:border-teal-600/50"
@@ -320,32 +336,41 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
           aria-label={line.checked ? "完了を解除" : "完了にする"}
           title={line.checked ? "完了を解除" : "完了にする"}
           className="mt-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-teal-700/60 bg-teal-950/50 text-lg text-teal-100 hover:bg-teal-900/60"
-          onClick={() => toggleChecked(index)}
+          onClick={() => toggleChecked(realIndex)}
         >
           {line.checked ? "☑" : "□"}
         </button>
         <input
           ref={(el) => {
-            inputRefs.current[index] = el;
+            inputRefs.current[realIndex] = el;
           }}
-          id={index === 0 ? "note-park-first-line" : undefined}
-          name={index === 0 ? "note" : undefined}
+          id={realIndex === 0 ? "note-park-first-line" : undefined}
+          name={realIndex === 0 ? "note" : undefined}
           type="text"
           inputMode="text"
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
           className="min-h-11 flex-1 border-none bg-transparent py-2 text-base text-zinc-100 caret-teal-400 outline-none placeholder:text-zinc-500"
-          placeholder={index === 0 ? "メモを入力…" : ""}
+          placeholder={realIndex === 0 ? "メモを入力…" : ""}
           value={line.text}
-          autoFocus={mode === "new" && index === 0}
-          enterKeyHint={index === lines.length - 1 ? "enter" : "next"}
-          onChange={(e) => updateLine(index, { text: e.target.value })}
-          onKeyDown={(e) => onLineKeyDown(index, e)}
+          autoFocus={mode === "new" && realIndex === 0 && lineFilter === "all" && !lineSearch.trim()}
+          enterKeyHint={realIndex === lines.length - 1 ? "enter" : "next"}
+          onChange={(e) => updateLine(realIndex, { text: e.target.value })}
+          onKeyDown={(e) => onLineKeyDown(realIndex, e)}
         />
       </div>
     ));
-  }, [lines, mode, onLineKeyDown, toggleChecked, updateLine]);
+  }, [
+    visibleLineEntries,
+    lines.length,
+    lineFilter,
+    lineSearch,
+    mode,
+    onLineKeyDown,
+    toggleChecked,
+    updateLine,
+  ]);
 
   const statusBanner = useMemo(() => {
     if (auth.status === "loading") {
@@ -409,7 +434,56 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
           <p className="text-zinc-400">読み込み中…</p>
         ) : (
           <>
-            <div className="space-y-1">{lineInputs}</div>
+            <div className="mb-3 space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <span className="sr-only">表示する行</span>
+                {(
+                  [
+                    { key: "all" as const, label: "すべて" },
+                    { key: "unchecked" as const, label: "未チェック" },
+                    { key: "checked" as const, label: "チェック済み" },
+                  ] as const
+                ).map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      lineFilter === key
+                        ? "bg-teal-700 text-white"
+                        : "bg-teal-950/60 text-zinc-400 hover:bg-teal-900/50"
+                    }`}
+                    onClick={() => setLineFilter(key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <label htmlFor="note-line-search" className="sr-only">
+                  行を検索
+                </label>
+                <input
+                  id="note-line-search"
+                  type="search"
+                  inputMode="search"
+                  enterKeyHint="search"
+                  autoComplete="off"
+                  placeholder="行を検索…"
+                  value={lineSearch}
+                  onChange={(e) => setLineSearch(e.target.value)}
+                  className="w-full rounded-lg border border-teal-900/50 bg-teal-950/30 px-3 py-2 text-sm text-zinc-100 outline-none ring-teal-600/40 placeholder:text-zinc-600 focus:ring-2"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              {visibleLineEntries.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-teal-800/50 px-3 py-6 text-center text-sm text-zinc-500">
+                  条件に一致する行がありません。フィルタや検索を変えてください。
+                </p>
+              ) : (
+                lineInputs
+              )}
+            </div>
             <div className="mt-6 space-y-2">
               <label className="block text-xs font-medium uppercase tracking-wide text-zinc-500">
                 タイトル（あとから）
