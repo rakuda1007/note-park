@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import AppErrorBoundary from "@/components/AppErrorBoundary";
 import PwaResumeHandler from "@/components/PwaResumeHandler";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import "./globals.css";
@@ -49,7 +50,7 @@ export default function RootLayout({
       >
         <ServiceWorkerRegister />
         <PwaResumeHandler />
-        {children}
+        <AppErrorBoundary>{children}</AppErrorBoundary>
       </body>
     </html>
   );

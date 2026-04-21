@@ -84,36 +84,72 @@ function lineCheckFlags(lines: NoteLine[]): {
   return { hasUncheckedLines, hasCheckedLines };
 }
 
+/**
+ * 1件分の一覧用オブジェクトへ変換。想定外データで例外が出ても一覧全体を落とさず null。
+ */
+function mapToNoteListItem(
+  id: string,
+  data: { title?: unknown; lines?: unknown; updatedAt?: unknown },
+): NoteListItem | null {
+  try {
+    const lines = normalizeLines(data.lines);
+    const title = typeof data.title === "string" ? data.title : "";
+    const flags = lineCheckFlags(lines);
+    const lineCount = lines.length;
+    return {
+      id,
+      title,
+      preview: previewFromLines(lines),
+      updatedAt: timestampToMs(data.updatedAt),
+      lineCount,
+      ...(lineCount === 1 ? { onlyLine: lines[0] } : {}),
+      ...flags,
+    };
+  } catch {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[note-park] list item skipped (invalid data)", id);
+    }
+    return null;
+  }
+}
+
 export async function fetchNote(
   noteId: string,
   ownerId: string,
 ): Promise<(NotePayload & { id: string; updatedAt: number }) | null> {
-  if (isFirebaseConfigured()) {
-    const db = getFirestoreDb();
-    const snap = await getDoc(doc(db, "notes", noteId));
-    if (!snap.exists()) return null;
-    const data = snap.data();
-    if (data.ownerId !== ownerId) return null;
-    const lines = normalizeLines(data.lines);
-    const title = typeof data.title === "string" ? data.title : "";
-    return {
-      id: snap.id,
-      title,
-      lines,
-      updatedAt: timestampToMs(data.updatedAt),
-    };
-  }
+  try {
+    if (isFirebaseConfigured()) {
+      const db = getFirestoreDb();
+      const snap = await getDoc(doc(db, "notes", noteId));
+      if (!snap.exists()) return null;
+      const data = snap.data();
+      if (data.ownerId !== ownerId) return null;
+      const lines = normalizeLines(data.lines);
+      const title = typeof data.title === "string" ? data.title : "";
+      return {
+        id: snap.id,
+        title,
+        lines,
+        updatedAt: timestampToMs(data.updatedAt),
+      };
+    }
 
-  const all = readLocalStore();
-  const note = all[noteId];
-  if (!note || note.ownerId !== ownerId) return null;
-  const title = typeof note.title === "string" ? note.title : "";
-  return {
-    id: note.id,
-    title,
-    lines: normalizeLines(note.lines),
-    updatedAt: note.updatedAt,
-  };
+    const all = readLocalStore();
+    const note = all[noteId];
+    if (!note || note.ownerId !== ownerId) return null;
+    const title = typeof note.title === "string" ? note.title : "";
+    return {
+      id: note.id,
+      title,
+      lines: normalizeLines(note.lines),
+      updatedAt: timestampToMs(note.updatedAt),
+    };
+  } catch {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[note-park] fetchNote failed", noteId);
+    }
+    return null;
+  }
 }
 
 export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
@@ -125,43 +161,23 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
       orderBy("updatedAt", "desc"),
     );
     const snap = await getDocs(q);
-    return snap.docs.map((d) => {
-      const data = d.data();
-      const lines = normalizeLines(data.lines);
-      const title = typeof data.title === "string" ? data.title : "";
-      const flags = lineCheckFlags(lines);
-      const lineCount = lines.length;
-      return {
-        id: d.id,
-        title,
-        preview: previewFromLines(lines),
-        updatedAt: timestampToMs(data.updatedAt),
-        lineCount,
-        ...(lineCount === 1 ? { onlyLine: lines[0] } : {}),
-        ...flags,
-      };
-    });
+    return snap.docs
+      .map((d) => mapToNoteListItem(d.id, d.data()))
+      .filter((x): x is NoteListItem => x !== null);
   }
 
   const all = readLocalStore();
   return Object.values(all)
     .filter((n) => n.ownerId === ownerId)
     .sort((a, b) => b.updatedAt - a.updatedAt)
-    .map((n) => {
-      const lines = normalizeLines(n.lines);
-      const flags = lineCheckFlags(lines);
-      const title = typeof n.title === "string" ? n.title : "";
-      const lineCount = lines.length;
-      return {
-        id: n.id,
-        title,
-        preview: previewFromLines(lines),
+    .map((n) =>
+      mapToNoteListItem(n.id, {
+        title: n.title,
+        lines: n.lines,
         updatedAt: n.updatedAt,
-        lineCount,
-        ...(lineCount === 1 ? { onlyLine: lines[0] } : {}),
-        ...flags,
-      };
-    });
+      }),
+    )
+    .filter((x): x is NoteListItem => x !== null);
 }
 
 export async function createNote(ownerId: string, payload: NotePayload): Promise<string> {
