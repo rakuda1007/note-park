@@ -338,9 +338,9 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
 
   if (loadError) {
     return (
-      <div className="min-h-dvh bg-zinc-950 text-zinc-100">
+      <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
         <AppHeader end={<Link href="/notes">一覧</Link>} />
-        <main className="mx-auto max-w-lg px-4 py-8">
+        <main className="mx-auto w-full min-w-0 max-w-lg px-4 py-8">
           <p className="text-red-200">{loadError}</p>
           <Link href="/notes" className="mt-4 inline-block text-teal-300 underline">
             一覧に戻る
@@ -351,7 +351,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   }
 
   return (
-    <div className="min-h-dvh bg-zinc-950 text-zinc-100">
+    <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
       <AppHeader
         end={
           <>
@@ -364,7 +364,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
           </>
         }
       />
-      <main className="mx-auto max-w-lg px-4 pb-16 pt-4">
+      <main className="mx-auto w-full min-w-0 max-w-lg px-4 pb-16 pt-4">
         {loadingNote ? (
           <p className="text-zinc-400">読み込み中…</p>
         ) : (
@@ -373,7 +373,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
               {lines.map((line, realIndex) => (
                 <div
                   key={line.id}
-                  className="flex items-start gap-2 rounded-lg border border-transparent px-1 py-0.5 hover:border-teal-800/40 focus-within:border-teal-600/50"
+                  className="flex min-w-0 items-start gap-2 rounded-lg border border-transparent px-1 py-0.5 hover:border-teal-800/40 focus-within:border-teal-600/50"
                 >
                   <button
                     type="button"
@@ -397,7 +397,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
                     autoComplete="off"
                     autoCorrect="off"
                     spellCheck={false}
-                    className="min-h-11 flex-1 border-none bg-transparent py-2 text-base text-zinc-100 caret-teal-400 outline-none placeholder:text-zinc-500"
+                    className="min-h-11 min-w-0 flex-1 border-none bg-transparent py-2 text-base text-zinc-100 caret-teal-400 outline-none placeholder:text-zinc-500"
                     placeholder={realIndex === 0 ? "メモを入力…" : ""}
                     value={line.text}
                     autoFocus={mode === "new" && realIndex === 0}
@@ -413,7 +413,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
                 タイトル（あとから）
               </label>
               <input
-                className="w-full rounded-lg border border-teal-900/50 bg-teal-950/30 px-3 py-2 text-base text-zinc-100 outline-none ring-teal-600/40 placeholder:text-zinc-600 focus:ring-2"
+                className="w-full min-w-0 rounded-lg border border-teal-900/50 bg-teal-950/30 px-3 py-2 text-base text-zinc-100 outline-none ring-teal-600/40 placeholder:text-zinc-600 focus:ring-2"
                 placeholder="無題のノート"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}

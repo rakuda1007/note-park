@@ -102,7 +102,7 @@ export default function NotesListPage() {
   );
 
   return (
-    <div className="min-h-dvh bg-zinc-950 text-zinc-100">
+    <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
       <AppHeader
         end={
           <Link
@@ -113,7 +113,7 @@ export default function NotesListPage() {
           </Link>
         }
       />
-      <main className="mx-auto max-w-lg px-4 pb-16 pt-4">
+      <main className="mx-auto w-full min-w-0 max-w-lg px-4 pb-16 pt-4">
         <h1 className="mb-4 text-sm font-medium uppercase tracking-wide text-zinc-500">
           ノート一覧
         </h1>
@@ -194,8 +194,9 @@ export default function NotesListPage() {
                     (n.lineCount ?? 0) === 1 && Boolean(n.onlyLine);
                   return (
                   <li key={n.id} className="flex min-w-0 items-stretch">
-                    {showListCheckbox && n.onlyLine ? (
-                      <div className="flex shrink-0 flex-col items-center border-r border-teal-900/40 py-3 pl-2 pr-1">
+                    {/* 全行で同じ幅を確保し、チェック列の有無で右側がズレないようにする */}
+                    <div className="flex w-12 shrink-0 flex-col items-center justify-center self-stretch border-r border-teal-900/40 px-1 py-2 sm:w-[3.25rem]">
+                      {showListCheckbox && n.onlyLine ? (
                         <button
                           type="button"
                           role="checkbox"
@@ -207,7 +208,7 @@ export default function NotesListPage() {
                           }
                           title={n.onlyLine.checked ? "完了を解除" : "完了にする"}
                           disabled={togglingId === n.id || deletingId === n.id}
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-teal-700/60 bg-teal-950/50 text-lg text-teal-100 hover:bg-teal-900/60 disabled:opacity-50"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-teal-700/60 bg-teal-950/50 text-base leading-none text-teal-100 hover:bg-teal-900/60 disabled:opacity-50"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -216,11 +217,11 @@ export default function NotesListPage() {
                         >
                           {n.onlyLine.checked ? "☑" : "□"}
                         </button>
-                      </div>
-                    ) : null}
+                      ) : null}
+                    </div>
                     <Link
                       href={`/notes/edit?id=${encodeURIComponent(n.id)}`}
-                      className="min-w-0 flex-1 overflow-hidden px-3 py-3 pr-2 hover:bg-teal-900/30 active:bg-teal-900/40 sm:px-4"
+                      className="flex min-h-0 min-w-0 flex-1 flex-col justify-center overflow-hidden px-2 py-3 pr-2 hover:bg-teal-900/30 active:bg-teal-900/40 sm:px-3"
                     >
                       {hasBody ? (
                         <>
@@ -247,11 +248,11 @@ export default function NotesListPage() {
                         })}
                       </div>
                     </Link>
-                    <div className="flex w-[4.5rem] shrink-0 items-center justify-center border-l border-teal-900/40 sm:w-auto sm:min-w-[5rem]">
+                    <div className="flex w-[4.5rem] shrink-0 items-stretch self-stretch border-l border-teal-900/40 sm:min-w-[5rem]">
                       <button
                         type="button"
                         disabled={deletingId === n.id}
-                        className="h-full w-full px-2 py-3 text-sm font-medium text-red-300 hover:bg-red-950/40 disabled:opacity-50 sm:px-3"
+                        className="box-border flex h-full min-h-[3.25rem] w-full items-center justify-center px-2 py-3 text-sm font-medium text-red-300 hover:bg-red-950/40 disabled:opacity-50 sm:px-3"
                         aria-label={`「${labelForA11y}」を削除`}
                         onClick={(e) => {
                           e.preventDefault();

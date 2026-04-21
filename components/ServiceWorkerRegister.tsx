@@ -89,7 +89,7 @@ export default function ServiceWorkerRegister() {
   return (
     <div
       role="status"
-      className="fixed bottom-0 left-0 right-0 z-[100] border-t border-teal-800/60 bg-zinc-950/95 px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.4)] backdrop-blur-sm"
+      className="fixed bottom-0 left-0 right-0 z-[100] border-t border-teal-800/60 bg-zinc-950/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pt-3 shadow-[0_-4px_24px_rgba(0,0,0,0.4)] backdrop-blur-sm"
     >
       <div className="mx-auto flex max-w-lg flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <p className="text-sm text-zinc-200">

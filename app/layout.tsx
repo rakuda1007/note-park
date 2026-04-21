@@ -30,6 +30,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  /** 実機のノッチ／ホームインジケータ内に余白を取れるよう env(safe-area-inset-*) を有効化 */
+  viewportFit: "cover",
   themeColor: "#115e59",
 };
 
