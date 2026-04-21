@@ -18,4 +18,8 @@ export type NoteListItem = {
   hasUncheckedLines: boolean;
   /** チェック済みの行が1行でもある */
   hasCheckedLines: boolean;
+  /** 行の本数（一覧で単独行のみチェック操作を出すため） */
+  lineCount: number;
+  /** 行がちょうど1つのときのみ。一覧のチェック切り替えに使う */
+  onlyLine?: NoteLine;
 };

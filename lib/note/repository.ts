@@ -130,11 +130,14 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
       const lines = normalizeLines(data.lines);
       const title = typeof data.title === "string" ? data.title : "";
       const flags = lineCheckFlags(lines);
+      const lineCount = lines.length;
       return {
         id: d.id,
         title,
         preview: previewFromLines(lines),
         updatedAt: timestampToMs(data.updatedAt),
+        lineCount,
+        ...(lineCount === 1 ? { onlyLine: lines[0] } : {}),
         ...flags,
       };
     });
@@ -148,11 +151,14 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
       const lines = normalizeLines(n.lines);
       const flags = lineCheckFlags(lines);
       const title = typeof n.title === "string" ? n.title : "";
+      const lineCount = lines.length;
       return {
         id: n.id,
         title,
         preview: previewFromLines(lines),
         updatedAt: n.updatedAt,
+        lineCount,
+        ...(lineCount === 1 ? { onlyLine: lines[0] } : {}),
         ...flags,
       };
     });

@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
-import { deleteNote, listNotes } from "@/lib/note/repository";
-import type { NoteListItem } from "@/lib/types/note";
+import { deleteNote, listNotes, updateNote } from "@/lib/note/repository";
+import type { NoteLine, NoteListItem } from "@/lib/types/note";
 
 type LineFilter = "all" | "checked" | "unchecked";
 
@@ -16,6 +16,7 @@ export default function NotesListPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [listSearch, setListSearch] = useState("");
   const [lineFilter, setLineFilter] = useState<LineFilter>("all");
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const ownerId = auth.status === "ready" ? auth.ownerId : null;
 
   const filteredItems = useMemo(() => {
@@ -47,6 +48,41 @@ export default function NotesListPage() {
   useEffect(() => {
     loadList();
   }, [loadList]);
+
+  const handleToggleOnlyLine = useCallback(
+    async (item: NoteListItem) => {
+      if (!ownerId || item.lineCount !== 1 || !item.onlyLine) return;
+      const line = item.onlyLine;
+      const nextChecked = !line.checked;
+      const nextLine: NoteLine = { text: line.text, checked: nextChecked };
+      const payload = { title: item.title, lines: [nextLine] };
+      const previewSlice = nextLine.text.trim().slice(0, 200);
+      setTogglingId(item.id);
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id !== item.id
+            ? it
+            : {
+                ...it,
+                onlyLine: nextLine,
+                preview: previewSlice,
+                hasUncheckedLines: !nextChecked,
+                hasCheckedLines: nextChecked,
+                updatedAt: Date.now(),
+              },
+        ),
+      );
+      try {
+        await updateNote(item.id, ownerId, payload);
+      } catch {
+        void loadList();
+        window.alert("チェックの更新に失敗しました。もう一度お試しください。");
+      } finally {
+        setTogglingId(null);
+      }
+    },
+    [ownerId, loadList],
+  );
 
   const handleDelete = useCallback(
     async (noteId: string) => {
@@ -154,8 +190,34 @@ export default function NotesListPage() {
                       .filter((s) => s.length > 0)
                       .join(" ")
                       .slice(0, 80) || "無題";
+                  const showListCheckbox =
+                    (n.lineCount ?? 0) === 1 && Boolean(n.onlyLine);
                   return (
                   <li key={n.id} className="flex min-w-0 items-stretch">
+                    {showListCheckbox && n.onlyLine ? (
+                      <div className="flex shrink-0 flex-col items-center border-r border-teal-900/40 py-3 pl-2 pr-1">
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={n.onlyLine.checked}
+                          aria-label={
+                            n.onlyLine.checked
+                              ? "完了を解除（一覧）"
+                              : "完了にする（一覧）"
+                          }
+                          title={n.onlyLine.checked ? "完了を解除" : "完了にする"}
+                          disabled={togglingId === n.id || deletingId === n.id}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-teal-700/60 bg-teal-950/50 text-lg text-teal-100 hover:bg-teal-900/60 disabled:opacity-50"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void handleToggleOnlyLine(n);
+                          }}
+                        >
+                          {n.onlyLine.checked ? "☑" : "□"}
+                        </button>
+                      </div>
+                    ) : null}
                     <Link
                       href={`/notes/edit?id=${encodeURIComponent(n.id)}`}
                       className="min-w-0 flex-1 overflow-hidden px-3 py-3 pr-2 hover:bg-teal-900/30 active:bg-teal-900/40 sm:px-4"
