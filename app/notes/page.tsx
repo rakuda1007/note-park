@@ -29,9 +29,9 @@ export default function NotesListPage() {
       );
     }
     if (lineFilter === "unchecked") {
-      next = next.filter((n) => n.hasUncheckedLines);
+      next = next.filter((n) => Boolean(n.hasUncheckedLines));
     } else if (lineFilter === "checked") {
-      next = next.filter((n) => n.hasCheckedLines);
+      next = next.filter((n) => Boolean(n.hasCheckedLines));
     }
     return next;
   }, [items, listSearch, lineFilter]);
@@ -145,12 +145,15 @@ export default function NotesListPage() {
             ) : (
               <ul className="divide-y divide-teal-900/40 overflow-x-hidden rounded-xl border border-teal-900/40 bg-teal-950/20">
                 {filteredItems.map((n) => {
-                  const titleText = n.title.trim();
-                  const hasBody = n.preview.trim().length > 0;
+                  const titleText = (n.title ?? "").trim();
+                  const previewText = (n.preview ?? "").trim();
+                  const hasBody = previewText.length > 0;
                   const hasTitle = titleText.length > 0;
                   const labelForA11y =
-                    [n.preview, titleText].filter((s) => s.trim()).join(" ").slice(0, 80) ||
-                    "無題";
+                    [previewText, titleText]
+                      .filter((s) => s.length > 0)
+                      .join(" ")
+                      .slice(0, 80) || "無題";
                   return (
                   <li key={n.id} className="flex min-w-0 items-stretch">
                     <Link
@@ -160,7 +163,7 @@ export default function NotesListPage() {
                       {hasBody ? (
                         <>
                           <div className="line-clamp-3 break-words text-base font-medium leading-snug text-zinc-100">
-                            {n.preview}
+                            {previewText}
                           </div>
                           {hasTitle ? (
                             <div className="mt-1.5">

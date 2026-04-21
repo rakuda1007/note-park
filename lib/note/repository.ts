@@ -47,10 +47,25 @@ function timestampToMs(value: unknown): number {
   return Date.now();
 }
 
+/** Firestore / 古い localStorage から読んだ行を安全に整形 */
+function normalizeLines(raw: unknown): NoteLine[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((row) => {
+    if (!row || typeof row !== "object") {
+      return { text: "", checked: false };
+    }
+    const r = row as Record<string, unknown>;
+    return {
+      text: typeof r.text === "string" ? r.text : "",
+      checked: Boolean(r.checked),
+    };
+  });
+}
+
 /** 一覧・検索用の本文抜粋（タイトルは含めない） */
 function previewFromLines(lines: NoteLine[]): string {
   const joined = lines
-    .map((l) => l.text.trim())
+    .map((l) => (typeof l.text === "string" ? l.text : "").trim())
     .filter(Boolean)
     .join(" ");
   return joined.slice(0, 200);
@@ -79,7 +94,7 @@ export async function fetchNote(
     if (!snap.exists()) return null;
     const data = snap.data();
     if (data.ownerId !== ownerId) return null;
-    const lines = (data.lines as NoteLine[] | undefined) ?? [];
+    const lines = normalizeLines(data.lines);
     const title = typeof data.title === "string" ? data.title : "";
     return {
       id: snap.id,
@@ -92,10 +107,11 @@ export async function fetchNote(
   const all = readLocalStore();
   const note = all[noteId];
   if (!note || note.ownerId !== ownerId) return null;
+  const title = typeof note.title === "string" ? note.title : "";
   return {
     id: note.id,
-    title: note.title,
-    lines: note.lines,
+    title,
+    lines: normalizeLines(note.lines),
     updatedAt: note.updatedAt,
   };
 }
@@ -111,7 +127,7 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
     const snap = await getDocs(q);
     return snap.docs.map((d) => {
       const data = d.data();
-      const lines = (data.lines as NoteLine[] | undefined) ?? [];
+      const lines = normalizeLines(data.lines);
       const title = typeof data.title === "string" ? data.title : "";
       const flags = lineCheckFlags(lines);
       return {
@@ -129,11 +145,13 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
     .filter((n) => n.ownerId === ownerId)
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .map((n) => {
-      const flags = lineCheckFlags(n.lines);
+      const lines = normalizeLines(n.lines);
+      const flags = lineCheckFlags(lines);
+      const title = typeof n.title === "string" ? n.title : "";
       return {
         id: n.id,
-        title: n.title,
-        preview: previewFromLines(n.lines),
+        title,
+        preview: previewFromLines(lines),
         updatedAt: n.updatedAt,
         ...flags,
       };
