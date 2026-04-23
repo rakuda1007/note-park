@@ -5,7 +5,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  orderBy,
   query,
   serverTimestamp,
   Timestamp,
@@ -156,15 +155,13 @@ export async function fetchNote(
 export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
   if (isCloudOwnerId(ownerId)) {
     const db = getFirestoreDb();
-    const q = query(
-      collection(db, "notes"),
-      where("ownerId", "==", ownerId),
-      orderBy("updatedAt", "desc"),
-    );
+    // orderBy は複合インデックス必須になるため、where のみにして取得後に並べ替え（新規 DB で index 未作成でも動く）
+    const q = query(collection(db, "notes"), where("ownerId", "==", ownerId));
     const snap = await getDocs(q);
     return snap.docs
       .map((d) => mapToNoteListItem(d.id, d.data()))
-      .filter((x): x is NoteListItem => x !== null);
+      .filter((x): x is NoteListItem => x !== null)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   const all = readLocalStore();

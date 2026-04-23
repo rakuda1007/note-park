@@ -19,6 +19,7 @@ export default function NotesListPage() {
   const [listSearch, setListSearch] = useState("");
   const [lineFilter, setLineFilter] = useState<LineFilter>("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const ownerId = auth.status === "ready" && auth.ownerId ? auth.ownerId : null;
 
   const filteredItems = useMemo(() => {
@@ -42,8 +43,17 @@ export default function NotesListPage() {
   const loadList = useCallback(() => {
     if (!ownerId) return;
     setLoading(true);
+    setListError(null);
     void listNotes(ownerId)
-      .then(setItems)
+      .then((rows) => {
+        setItems(rows);
+      })
+      .catch((err: unknown) => {
+        setItems([]);
+        setListError(
+          err instanceof Error ? err.message : "ノート一覧の取得に失敗しました。",
+        );
+      })
       .finally(() => setLoading(false));
   }, [ownerId]);
 
@@ -131,6 +141,10 @@ export default function NotesListPage() {
           </p>
         ) : auth.status === "error" ? (
           <p className="text-red-200">{auth.message}</p>
+        ) : listError ? (
+          <p className="whitespace-pre-wrap rounded-md bg-red-950/50 px-3 py-2 text-sm text-red-100">
+            {listError}
+          </p>
         ) : loading ? (
           <p className="text-zinc-400">読み込み中…</p>
         ) : items.length === 0 ? (
