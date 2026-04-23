@@ -11,6 +11,7 @@ import {
   Timestamp,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import type { NoteLine, NoteListItem, NotePayload } from "@/lib/types/note";
 import { getFirestoreDb, isFirebaseConfigured } from "@/lib/firebase/client";
@@ -118,7 +119,7 @@ export async function fetchNote(
   ownerId: string,
 ): Promise<(NotePayload & { id: string; updatedAt: number }) | null> {
   try {
-    if (isFirebaseConfigured()) {
+    if (isCloudOwnerId(ownerId)) {
       const db = getFirestoreDb();
       const snap = await getDoc(doc(db, "notes", noteId));
       if (!snap.exists()) return null;
@@ -153,7 +154,7 @@ export async function fetchNote(
 }
 
 export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
-  if (isFirebaseConfigured()) {
+  if (isCloudOwnerId(ownerId)) {
     const db = getFirestoreDb();
     const q = query(
       collection(db, "notes"),
@@ -182,7 +183,7 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
 
 export async function createNote(ownerId: string, payload: NotePayload): Promise<string> {
   const now = Date.now();
-  if (isFirebaseConfigured()) {
+  if (isCloudOwnerId(ownerId)) {
     const db = getFirestoreDb();
     const ref = await addDoc(collection(db, "notes"), {
       ownerId,
@@ -213,7 +214,7 @@ export async function updateNote(
   ownerId: string,
   payload: NotePayload,
 ): Promise<void> {
-  if (isFirebaseConfigured()) {
+  if (isCloudOwnerId(ownerId)) {
     const db = getFirestoreDb();
     await updateDoc(doc(db, "notes", noteId), {
       title: payload.title,
@@ -236,7 +237,7 @@ export async function updateNote(
 }
 
 export async function deleteNote(noteId: string, ownerId: string): Promise<void> {
-  if (isFirebaseConfigured()) {
+  if (isCloudOwnerId(ownerId)) {
     const db = getFirestoreDb();
     await deleteDoc(doc(db, "notes", noteId));
     return;
@@ -251,4 +252,48 @@ export async function deleteNote(noteId: string, ownerId: string): Promise<void>
 
 export function getLocalOwnerId(): string {
   return LOCAL_OWNER;
+}
+
+/** Firebase が有効で、かつ未ログインの「ローカル専用」でない＝この ownerId のデータは Firestore */
+export function isCloudOwnerId(ownerId: string): boolean {
+  return isFirebaseConfigured() && ownerId !== LOCAL_OWNER;
+}
+
+/**
+ * 未ログイン時に localStorage に溜めたノートを、ログイン後の UID 配下の Firestore に取り込む。
+ * 成功後、該当エントリは localStorage から削除する。
+ */
+export async function migrateLocalNotesToFirebase(uid: string): Promise<{ migrated: number }> {
+  if (!isFirebaseConfigured()) return { migrated: 0 };
+  const all = readLocalStore();
+  const toMigrate = Object.values(all).filter((n) => n.ownerId === LOCAL_OWNER);
+  if (toMigrate.length === 0) return { migrated: 0 };
+
+  const db = getFirestoreDb();
+  const col = collection(db, "notes");
+  const CHUNK = 400;
+  for (let i = 0; i < toMigrate.length; i += CHUNK) {
+    const slice = toMigrate.slice(i, i + CHUNK);
+    const batch = writeBatch(db);
+    for (const n of slice) {
+      const created = typeof n.createdAt === "number" && Number.isFinite(n.createdAt) ? n.createdAt : Date.now();
+      const updated = typeof n.updatedAt === "number" && Number.isFinite(n.updatedAt) ? n.updatedAt : Date.now();
+      const ref = doc(col);
+      batch.set(ref, {
+        ownerId: uid,
+        title: n.title,
+        lines: n.lines,
+        createdAt: Timestamp.fromMillis(created),
+        updatedAt: Timestamp.fromMillis(updated),
+      });
+    }
+    await batch.commit();
+  }
+
+  const next = { ...all };
+  for (const n of toMigrate) {
+    delete next[n.id];
+  }
+  writeLocalStore(next);
+  return { migrated: toMigrate.length };
 }

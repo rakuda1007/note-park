@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
+import AuthToolbar from "@/components/AuthToolbar";
 import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
 import { deleteNote, listNotes, updateNote } from "@/lib/note/repository";
 import type { NoteLine, NoteListItem } from "@/lib/types/note";
@@ -17,7 +18,7 @@ export default function NotesListPage() {
   const [listSearch, setListSearch] = useState("");
   const [lineFilter, setLineFilter] = useState<LineFilter>("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const ownerId = auth.status === "ready" ? auth.ownerId : null;
+  const ownerId = auth.status === "ready" && auth.ownerId ? auth.ownerId : null;
 
   const filteredItems = useMemo(() => {
     const q = listSearch.trim().toLowerCase();
@@ -105,20 +106,25 @@ export default function NotesListPage() {
     <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
       <AppHeader
         end={
-          <Link
-            href="/"
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-teal-100 hover:bg-teal-900/50"
-          >
-            新規
-          </Link>
+          <div className="flex min-w-0 items-center justify-end gap-1 sm:gap-2">
+            <AuthToolbar />
+            <Link
+              href="/"
+              className="rounded-md px-2 py-1.5 text-sm font-medium text-teal-100 hover:bg-teal-900/50 sm:px-3"
+            >
+              新規
+            </Link>
+          </div>
         }
       />
       <main className="mx-auto w-full min-w-0 max-w-lg px-4 pb-16 pt-4">
         <h1 className="mb-4 text-sm font-medium uppercase tracking-wide text-zinc-500">
           ノート一覧
         </h1>
-        {auth.status === "loading" ? (
-          <p className="text-zinc-400">読み込み中…</p>
+        {auth.status === "loading" || auth.status === "migrating" ? (
+          <p className="text-zinc-400">
+            {auth.status === "migrating" ? "未ログイン時のメモを同期しています…" : "読み込み中…"}
+          </p>
         ) : auth.status === "error" ? (
           <p className="text-red-200">{auth.message}</p>
         ) : loading ? (

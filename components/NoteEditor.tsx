@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppHeader from "@/components/AppHeader";
+import AuthToolbar from "@/components/AuthToolbar";
 import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
 import {
   createNote,
@@ -65,7 +66,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   titleRef.current = title;
   remoteIdRef.current = remoteId;
 
-  const ownerId = auth.status === "ready" ? auth.ownerId : null;
+  const ownerId = auth.status === "ready" && auth.ownerId ? auth.ownerId : null;
 
   const focusLine = useCallback((index: number, caret?: number) => {
     requestAnimationFrame(() => {
@@ -310,36 +311,44 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   const statusBanner = useMemo(() => {
     if (auth.status === "loading") {
       return (
+        <p className="rounded-md bg-teal-900/40 px-3 py-2 text-sm text-teal-100">準備中…</p>
+      );
+    }
+    if (auth.status === "migrating") {
+      return (
         <p className="rounded-md bg-teal-900/40 px-3 py-2 text-sm text-teal-100">
-          準備中…
+          未ログイン時のメモを同期しています…
         </p>
       );
     }
     if (auth.status === "error") {
       return (
-        <p className="rounded-md bg-red-950/50 px-3 py-2 text-sm text-red-100">
-          {auth.message}（Firebase の匿名認証を有効にしてください）
-        </p>
+        <p className="rounded-md bg-red-950/50 px-3 py-2 text-sm text-red-100">{auth.message}</p>
       );
     }
     if (auth.isCloud) {
       return (
-        <p className="text-xs text-zinc-500">
-          変更は自動保存されます（空にすると保存されません）
-        </p>
+        <p className="text-xs text-zinc-500">変更は自動保存されます（空にすると保存されません）</p>
       );
     }
     return (
-      <p className="text-xs text-amber-200/90">
-        Firebase 未設定のため、この端末内にのみ保存します
-      </p>
+      <p className="text-xs text-amber-200/90">ログイン前はこの端末内（localStorage）のみに保存します</p>
     );
   }, [auth]);
 
   if (loadError) {
     return (
       <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
-        <AppHeader end={<Link href="/notes">一覧</Link>} />
+        <AppHeader
+          end={
+            <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+              <AuthToolbar />
+              <Link href="/notes" className="text-sm text-teal-200 hover:underline">
+                一覧
+              </Link>
+            </div>
+          }
+        />
         <main className="mx-auto w-full min-w-0 max-w-lg px-4 py-8">
           <p className="text-red-200">{loadError}</p>
           <Link href="/notes" className="mt-4 inline-block text-teal-300 underline">
@@ -354,14 +363,15 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
       <AppHeader
         end={
-          <>
+          <div className="flex min-w-0 items-center justify-end gap-1 sm:gap-2">
+            <AuthToolbar />
             <Link
               href="/notes"
-              className="rounded-md px-3 py-1.5 text-sm font-medium text-teal-100 hover:bg-teal-900/50"
+              className="rounded-md px-2 py-1.5 text-sm font-medium text-teal-100 hover:bg-teal-900/50 sm:px-3"
             >
               一覧
             </Link>
-          </>
+          </div>
         }
       />
       <main className="mx-auto w-full min-w-0 max-w-lg px-4 pb-16 pt-4">
