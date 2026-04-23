@@ -106,13 +106,15 @@ export default function NotesListPage() {
     <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
       <AppHeader
         end={
-          <div className="flex min-w-0 items-center justify-end gap-1 sm:gap-2">
+          <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2.5">
             <AuthToolbar />
+            <div className="h-4 w-px shrink-0 self-center bg-teal-800/50" aria-hidden="true" />
             <Link
               href="/"
+              title="白紙のメモを開く"
               className="rounded-md px-2 py-1.5 text-sm font-medium text-teal-100 hover:bg-teal-900/50 sm:px-3"
             >
-              新規
+              メモを書く
             </Link>
           </div>
         }
