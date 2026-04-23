@@ -259,6 +259,24 @@ export function isCloudOwnerId(ownerId: string): boolean {
   return isFirebaseConfigured() && ownerId !== LOCAL_OWNER;
 }
 
+const MIGRATE_TIMEOUT_MS = 60_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error(message)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(id);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(id);
+        reject(e);
+      },
+    );
+  });
+}
+
 let migrateInFlight: Promise<{ migrated: number }> | null = null;
 let migrateInFlightUid: string | null = null;
 
@@ -273,7 +291,11 @@ export async function migrateLocalNotesToFirebase(uid: string): Promise<{ migrat
     return migrateInFlight;
   }
   migrateInFlightUid = uid;
-  const run = runMigrateLocalNotesToFirebaseBody(uid);
+  const run = withTimeout(
+    runMigrateLocalNotesToFirebaseBody(uid),
+    MIGRATE_TIMEOUT_MS,
+    `ローカルメモの同期が ${MIGRATE_TIMEOUT_MS / 1000} 秒以内に完了しませんでした。接続を確認のうえ、再ログインを試してください。`,
+  );
   migrateInFlight = run.finally(() => {
     migrateInFlight = null;
     migrateInFlightUid = null;
@@ -289,28 +311,33 @@ async function runMigrateLocalNotesToFirebaseBody(uid: string): Promise<{ migrat
   const db = getFirestoreDb();
   const col = collection(db, "notes");
   const CHUNK = 400;
+  const current: Record<string, StoredNote> = { ...all };
+  let done = 0;
+
   for (let i = 0; i < toMigrate.length; i += CHUNK) {
     const slice = toMigrate.slice(i, i + CHUNK);
     const batch = writeBatch(db);
     for (const n of slice) {
       const created = typeof n.createdAt === "number" && Number.isFinite(n.createdAt) ? n.createdAt : Date.now();
       const updated = typeof n.updatedAt === "number" && Number.isFinite(n.updatedAt) ? n.updatedAt : Date.now();
+      const title = typeof n.title === "string" ? n.title : "";
+      const lines = normalizeLines(n.lines);
       const ref = doc(col);
       batch.set(ref, {
         ownerId: uid,
-        title: n.title,
-        lines: n.lines,
+        title,
+        lines,
         createdAt: Timestamp.fromMillis(created),
         updatedAt: Timestamp.fromMillis(updated),
       });
     }
     await batch.commit();
+    for (const n of slice) {
+      delete current[n.id];
+    }
+    done += slice.length;
+    writeLocalStore(current);
   }
 
-  const next = { ...all };
-  for (const n of toMigrate) {
-    delete next[n.id];
-  }
-  writeLocalStore(next);
-  return { migrated: toMigrate.length };
+  return { migrated: done };
 }

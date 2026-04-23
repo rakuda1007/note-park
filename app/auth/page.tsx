@@ -3,12 +3,24 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { FirebaseError } from "firebase/app";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import AppHeader from "@/components/AppHeader";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase/client";
+
+function formatAuthError(err: unknown, fallback: string): string {
+  const code = err instanceof FirebaseError ? err.code : "";
+  if (code === "auth/operation-not-allowed") {
+    return "メール／パスワードのサインインがこの Firebase プロジェクトで有効になっていません。Firebase コンソール（このプロジェクト）→「構築」→「Authentication」→「Sign-in method」で「メール／パスワード」を有効にしてください。";
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return fallback;
+}
 
 export default function AuthPage() {
   const router = useRouter();
@@ -42,7 +54,7 @@ export default function AuthPage() {
     void signInWithEmailAndPassword(auth, email.trim(), password)
       .then(() => router.replace("/notes"))
       .catch((err: unknown) => {
-        setFormError(err instanceof Error ? err.message : "ログインに失敗しました。");
+        setFormError(formatAuthError(err, "ログインに失敗しました。"));
       })
       .finally(() => setBusy(false));
   };
@@ -58,7 +70,7 @@ export default function AuthPage() {
     void createUserWithEmailAndPassword(auth, email.trim(), password)
       .then(() => router.replace("/notes"))
       .catch((err: unknown) => {
-        setFormError(err instanceof Error ? err.message : "登録に失敗しました。");
+        setFormError(formatAuthError(err, "登録に失敗しました。"));
       })
       .finally(() => setBusy(false));
   };
