@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build --turbopack && node scripts/cleanRscTxt.mjs",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --write .",

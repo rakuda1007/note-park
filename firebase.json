@@ -15,6 +15,28 @@
     ],
     "cleanUrls": true,
     "trailingSlash": false,
+    "redirects": [
+      {
+        "source": "/index.txt",
+        "destination": "/",
+        "type": 302
+      },
+      {
+        "source": "/notes.txt",
+        "destination": "/notes",
+        "type": 302
+      },
+      {
+        "source": "/auth.txt",
+        "destination": "/auth",
+        "type": 302
+      },
+      {
+        "source": "/notes/edit.txt",
+        "destination": "/notes/edit",
+        "type": 302
+      }
+    ],
     "rewrites": [
       {
         "source": "/notes",
