@@ -259,12 +259,29 @@ export function isCloudOwnerId(ownerId: string): boolean {
   return isFirebaseConfigured() && ownerId !== LOCAL_OWNER;
 }
 
+let migrateInFlight: Promise<{ migrated: number }> | null = null;
+let migrateInFlightUid: string | null = null;
+
 /**
  * 未ログイン時に localStorage に溜めたノートを、ログイン後の UID 配下の Firestore に取り込む。
  * 成功後、該当エントリは localStorage から削除する。
+ * 同一 UID への同時呼び出しは1本にまとめ、二重移行を防ぐ。
  */
 export async function migrateLocalNotesToFirebase(uid: string): Promise<{ migrated: number }> {
   if (!isFirebaseConfigured()) return { migrated: 0 };
+  if (migrateInFlight && migrateInFlightUid === uid) {
+    return migrateInFlight;
+  }
+  migrateInFlightUid = uid;
+  const run = runMigrateLocalNotesToFirebaseBody(uid);
+  migrateInFlight = run.finally(() => {
+    migrateInFlight = null;
+    migrateInFlightUid = null;
+  });
+  return migrateInFlight;
+}
+
+async function runMigrateLocalNotesToFirebaseBody(uid: string): Promise<{ migrated: number }> {
   const all = readLocalStore();
   const toMigrate = Object.values(all).filter((n) => n.ownerId === LOCAL_OWNER);
   if (toMigrate.length === 0) return { migrated: 0 };
