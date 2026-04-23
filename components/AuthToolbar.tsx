@@ -61,8 +61,11 @@ export default function AuthToolbar({ className = "" }: Props) {
 
   if (auth.status === "loading" || auth.status === "migrating") {
     return (
-      <span className={`text-xs text-zinc-500 ${className}`.trim()}>
-        {auth.status === "migrating" ? "同期中…" : "…"}
+      <span
+        className={`text-xs text-teal-200/90 ${className}`.trim()}
+        title={auth.status === "migrating" ? "未ログイン時のメモを同期しています" : "認証の準備中"}
+      >
+        {auth.status === "migrating" ? "同期中…" : "準備中…"}
       </span>
     );
   }
