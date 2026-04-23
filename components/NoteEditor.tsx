@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import AuthToolbar from "@/components/AuthToolbar";
+import LocalMigrationErrorBanner from "@/components/LocalMigrationErrorBanner";
 import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
 import {
   createNote,
@@ -378,6 +379,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
         }
       />
       <main className="mx-auto w-full min-w-0 max-w-lg px-4 pb-16 pt-4">
+        <LocalMigrationErrorBanner />
         {loadingNote ? (
           <p className="text-zinc-400">読み込み中…</p>
         ) : (

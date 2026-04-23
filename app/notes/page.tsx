@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import AuthToolbar from "@/components/AuthToolbar";
+import LocalMigrationErrorBanner from "@/components/LocalMigrationErrorBanner";
 import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
 import { deleteNote, listNotes, updateNote } from "@/lib/note/repository";
 import type { NoteLine, NoteListItem } from "@/lib/types/note";
@@ -123,6 +124,7 @@ export default function NotesListPage() {
         <h1 className="mb-4 text-sm font-medium uppercase tracking-wide text-zinc-500">
           ノート一覧
         </h1>
+        <LocalMigrationErrorBanner />
         {auth.status === "loading" || auth.status === "migrating" ? (
           <p className="text-zinc-400">
             {auth.status === "migrating" ? "未ログイン時のメモを同期しています…" : "読み込み中…"}
