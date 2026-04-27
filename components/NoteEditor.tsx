@@ -57,6 +57,8 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   const [remoteId, setRemoteId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingNote, setLoadingNote] = useState(mode === "edit");
+  const [continueBusy, setContinueBusy] = useState(false);
+  const [continueError, setContinueError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linesSnapshotRef = useRef(lines);
   const titleRef = useRef(title);
@@ -142,25 +144,25 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     };
   }, [mode, initialNoteId, auth.status, ownerId]);
 
-  const persist = useCallback(async () => {
+  const persist = useCallback(async (): Promise<boolean> => {
     const t = titleRef.current;
     const ls = linesSnapshotRef.current;
     let id = remoteIdRef.current;
     const uid = ownerId;
-    if (!uid) return;
+    if (!uid) return false;
 
     if (!hasMeaningfulContent(ls, t)) {
       if (id) {
         try {
           await deleteNote(id, uid);
         } catch {
-          /* ignore */
+          return false;
         }
         setRemoteId(null);
         remoteIdRef.current = null;
         if (mode === "edit") router.replace("/");
       }
-      return;
+      return true;
     }
 
     const payload = toPayload(ls, t);
@@ -173,8 +175,9 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
       } else {
         await updateNote(id, uid, payload);
       }
+      return true;
     } catch {
-      /* ignore network errors; next edit will retry */
+      return false;
     }
   }, [mode, ownerId, router]);
 
@@ -309,6 +312,42 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     });
   }, []);
 
+  const canContinueNext =
+    mode === "new" &&
+    auth.status === "ready" &&
+    Boolean(ownerId) &&
+    !loadingNote &&
+    hasMeaningfulContent(lines, title);
+
+  const onContinueNext = useCallback(async () => {
+    if (!canContinueNext) return;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    setContinueBusy(true);
+    setContinueError(null);
+    try {
+      const ok = await persist();
+      if (!ok) {
+        setContinueError("保存に失敗しました。通信を確認して再度お試しください。");
+        schedulePersist();
+        return;
+      }
+      remoteIdRef.current = null;
+      setRemoteId(null);
+      setTitle("");
+      setLines([newEmptyLine()]);
+      focusLine(0, 0);
+    } finally {
+      setContinueBusy(false);
+    }
+  }, [canContinueNext, persist, focusLine, schedulePersist]);
+
+  useEffect(() => {
+    setContinueError(null);
+  }, [lines, title]);
+
   const statusBanner = useMemo(() => {
     if (auth.status === "loading") {
       return (
@@ -438,6 +477,21 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
                 onChange={(e) => setTitle(e.target.value)}
               />
             </div>
+            {mode === "new" && (
+              <div className="mt-3 space-y-1.5">
+                <button
+                  type="button"
+                  disabled={!canContinueNext || continueBusy}
+                  className="rounded-md border border-teal-600/70 bg-teal-900/40 px-3 py-2 text-sm font-medium text-teal-50 hover:bg-teal-800/50 disabled:cursor-not-allowed disabled:border-teal-900/50 disabled:bg-teal-950/40 disabled:text-zinc-500"
+                  onClick={() => void onContinueNext()}
+                >
+                  {continueBusy ? "保存中…" : "続けて入力"}
+                </button>
+                {continueError ? (
+                  <p className="text-sm text-red-300/95">{continueError}</p>
+                ) : null}
+              </div>
+            )}
             <div className="mt-4">{statusBanner}</div>
           </>
         )}
