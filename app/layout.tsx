@@ -26,7 +26,6 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
   icons: {
-    icon: [{ url: "/icons/NotePark.png", type: "image/png" }],
     apple: [{ url: "/icons/NotePark.png", type: "image/png" }],
   },
 };
