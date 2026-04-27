@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import AuthToolbar from "@/components/AuthToolbar";
 import LocalMigrationErrorBanner from "@/components/LocalMigrationErrorBanner";
@@ -13,49 +13,39 @@ import type { NoteLine, NoteListItem } from "@/lib/types/note";
 type LineFilter = "all" | "checked" | "unchecked";
 const DEFAULT_LINE_FILTER: LineFilter = "unchecked";
 
-function parseLineFilter(search: string): LineFilter {
-  const requested = new URLSearchParams(search).get("filter");
+function parseLineFilter(requested: string | null): LineFilter {
   if (requested === "all" || requested === "checked" || requested === "unchecked") {
     return requested;
   }
   return DEFAULT_LINE_FILTER;
 }
 
-export default function NotesListPage() {
+function NotesListContent() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const auth = useNoteAuth();
   const [items, setItems] = useState<NoteListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [listSearch, setListSearch] = useState("");
-  const [lineFilter, setLineFilterState] = useState<LineFilter>(DEFAULT_LINE_FILTER);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const ownerId = auth.status === "ready" && auth.ownerId ? auth.ownerId : null;
-
-  useEffect(() => {
-    const syncFromLocation = () => {
-      setLineFilterState(parseLineFilter(window.location.search));
-    };
-    syncFromLocation();
-    window.addEventListener("popstate", syncFromLocation);
-    return () => window.removeEventListener("popstate", syncFromLocation);
-  }, []);
+  const lineFilter = parseLineFilter(searchParams.get("filter"));
 
   const setLineFilter = useCallback(
     (nextFilter: LineFilter) => {
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(searchParams.toString());
       if (nextFilter === DEFAULT_LINE_FILTER) {
         params.delete("filter");
       } else {
         params.set("filter", nextFilter);
       }
       const query = params.toString();
-      setLineFilterState(nextFilter);
       router.replace(query ? `${pathname}?${query}` : pathname);
     },
-    [pathname, router],
+    [pathname, router, searchParams],
   );
 
   const filteredItems = useMemo(() => {
@@ -332,5 +322,21 @@ export default function NotesListPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function NotesListPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
+          <main className="mx-auto w-full min-w-0 max-w-lg px-4 pb-16 pt-4">
+            <p className="text-zinc-400">読み込み中…</p>
+          </main>
+        </div>
+      }
+    >
+      <NotesListContent />
+    </Suspense>
   );
 }
