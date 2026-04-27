@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import AuthToolbar from "@/components/AuthToolbar";
@@ -13,6 +14,7 @@ type LineFilter = "all" | "checked" | "unchecked";
 const DEFAULT_LINE_FILTER: LineFilter = "unchecked";
 
 export default function NotesListPage() {
+  const searchParams = useSearchParams();
   const auth = useNoteAuth();
   const [items, setItems] = useState<NoteListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +24,15 @@ export default function NotesListPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const ownerId = auth.status === "ready" && auth.ownerId ? auth.ownerId : null;
+
+  useEffect(() => {
+    const requested = searchParams.get("filter");
+    if (requested === "all" || requested === "checked" || requested === "unchecked") {
+      setLineFilter(requested);
+      return;
+    }
+    setLineFilter(DEFAULT_LINE_FILTER);
+  }, [searchParams]);
 
   const filteredItems = useMemo(() => {
     const q = listSearch.trim().toLowerCase();
