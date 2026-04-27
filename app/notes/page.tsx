@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import AuthToolbar from "@/components/AuthToolbar";
@@ -13,36 +13,49 @@ import type { NoteLine, NoteListItem } from "@/lib/types/note";
 type LineFilter = "all" | "checked" | "unchecked";
 const DEFAULT_LINE_FILTER: LineFilter = "unchecked";
 
+function parseLineFilter(search: string): LineFilter {
+  const requested = new URLSearchParams(search).get("filter");
+  if (requested === "all" || requested === "checked" || requested === "unchecked") {
+    return requested;
+  }
+  return DEFAULT_LINE_FILTER;
+}
+
 export default function NotesListPage() {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const auth = useNoteAuth();
   const [items, setItems] = useState<NoteListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [listSearch, setListSearch] = useState("");
+  const [lineFilter, setLineFilterState] = useState<LineFilter>(DEFAULT_LINE_FILTER);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const ownerId = auth.status === "ready" && auth.ownerId ? auth.ownerId : null;
-  const requestedFilter = searchParams.get("filter");
-  const lineFilter: LineFilter =
-    requestedFilter === "all" || requestedFilter === "checked" || requestedFilter === "unchecked"
-      ? requestedFilter
-      : DEFAULT_LINE_FILTER;
+
+  useEffect(() => {
+    const syncFromLocation = () => {
+      setLineFilterState(parseLineFilter(window.location.search));
+    };
+    syncFromLocation();
+    window.addEventListener("popstate", syncFromLocation);
+    return () => window.removeEventListener("popstate", syncFromLocation);
+  }, []);
 
   const setLineFilter = useCallback(
     (nextFilter: LineFilter) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(window.location.search);
       if (nextFilter === DEFAULT_LINE_FILTER) {
         params.delete("filter");
       } else {
         params.set("filter", nextFilter);
       }
       const query = params.toString();
+      setLineFilterState(nextFilter);
       router.replace(query ? `${pathname}?${query}` : pathname);
     },
-    [pathname, router, searchParams],
+    [pathname, router],
   );
 
   const filteredItems = useMemo(() => {
