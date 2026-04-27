@@ -31,22 +31,32 @@ function AuthEntryLink({
   variant: "default" | "warning";
   className?: string;
 }) {
-  const base =
+  const loginClass =
     variant === "warning"
-      ? "rounded px-1 py-1 text-[11px] text-amber-200 hover:bg-teal-900/50 sm:px-1.5 sm:text-sm"
-      : "rounded px-1 py-1 text-[11px] text-teal-100 hover:bg-teal-900/50 sm:px-1.5 sm:text-sm";
+      ? "text-xs font-medium text-amber-200 hover:text-amber-100 sm:text-sm"
+      : "text-xs font-medium text-teal-100 hover:text-teal-50 sm:text-sm";
+  const signupClass =
+    variant === "warning"
+      ? "rounded-md bg-amber-500 px-2.5 py-1 text-xs font-semibold text-zinc-950 hover:bg-amber-400 sm:px-3 sm:py-1.5 sm:text-sm"
+      : "rounded-md bg-teal-500 px-2.5 py-1 text-xs font-semibold text-white hover:bg-teal-400 sm:px-3 sm:py-1.5 sm:text-sm";
+
   return (
-    <AccountGroup className={className}>
+    <div className={`flex shrink-0 items-center gap-2 ${className}`.trim()}>
       <Link
         href={href}
-        title="メールアドレスで新規登録またはログイン"
-        className={`${base} inline-block max-w-[11rem] leading-snug sm:max-w-none sm:whitespace-nowrap sm:leading-none`.trim()}
+        title="メールアドレスでログイン"
+        className={loginClass}
       >
-        <span className="whitespace-nowrap">新規登録</span>
-        <span className="text-zinc-500"> / </span>
-        <span className="whitespace-nowrap">ログイン</span>
+        ログイン
       </Link>
-    </AccountGroup>
+      <Link
+        href={href}
+        title="メールアドレスで新規登録"
+        className={signupClass}
+      >
+        新規登録
+      </Link>
+    </div>
   );
 }
 

@@ -10,6 +10,7 @@ import { deleteNote, listNotes, updateNote } from "@/lib/note/repository";
 import type { NoteLine, NoteListItem } from "@/lib/types/note";
 
 type LineFilter = "all" | "checked" | "unchecked";
+const DEFAULT_LINE_FILTER: LineFilter = "unchecked";
 
 export default function NotesListPage() {
   const auth = useNoteAuth();
@@ -17,7 +18,7 @@ export default function NotesListPage() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [listSearch, setListSearch] = useState("");
-  const [lineFilter, setLineFilter] = useState<LineFilter>("all");
+  const [lineFilter, setLineFilter] = useState<LineFilter>(DEFAULT_LINE_FILTER);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const ownerId = auth.status === "ready" && auth.ownerId ? auth.ownerId : null;
@@ -193,7 +194,7 @@ export default function NotesListPage() {
                   ))}
                 </div>
               </div>
-              {listSearch.trim() || lineFilter !== "all" ? (
+              {listSearch.trim() || lineFilter !== DEFAULT_LINE_FILTER ? (
                 <p className="text-xs text-zinc-500">
                   {filteredItems.length} 件表示
                   {filteredItems.length === 0 ? "（一致なし）" : ""}
