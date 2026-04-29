@@ -33,6 +33,7 @@ export default function AuthPage() {
     return (
       <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
         <AppHeader
+          showPortalLink
           end={
             <Link href="/" className="text-sm text-teal-200 hover:underline">
               ホーム
@@ -78,6 +79,7 @@ export default function AuthPage() {
   return (
     <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
       <AppHeader
+        showPortalLink
         end={
           <Link href="/" className="rounded-md px-3 py-1.5 text-sm font-medium text-teal-100 hover:bg-teal-900/50">
             ホーム

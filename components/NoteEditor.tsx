@@ -380,6 +380,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     return (
       <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
         <AppHeader
+          showPortalLink
           end={
             <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
               <AuthToolbar />
@@ -407,6 +408,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   return (
     <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
       <AppHeader
+        showPortalLink
         end={
           <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2.5">
             <AuthToolbar />
