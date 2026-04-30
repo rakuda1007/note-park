@@ -386,7 +386,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
               <AuthToolbar />
               <div className="h-4 w-px shrink-0 self-center bg-teal-800/50" aria-hidden="true" />
               <Link
-                href="/notes?filter=unchecked"
+                href="/notes"
                 title="保存したメモの一覧"
                 className="text-sm text-teal-200 hover:underline"
               >
@@ -397,7 +397,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
         />
         <main className="mx-auto w-full min-w-0 max-w-lg px-4 py-8">
           <p className="text-red-200">{loadError}</p>
-          <Link href="/notes?filter=unchecked" className="mt-4 inline-block text-teal-300 underline">
+          <Link href="/notes" className="mt-4 inline-block text-teal-300 underline">
             一覧に戻る
           </Link>
         </main>
@@ -414,7 +414,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
             <AuthToolbar />
             <div className="h-4 w-px shrink-0 self-center bg-teal-800/50" aria-hidden="true" />
             <Link
-              href="/notes?filter=unchecked"
+              href="/notes"
               title="保存したメモの一覧"
               className="rounded-md px-2 py-1.5 text-sm font-medium text-teal-100 hover:bg-teal-900/50 sm:px-3"
             >

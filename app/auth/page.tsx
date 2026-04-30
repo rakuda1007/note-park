@@ -53,7 +53,7 @@ export default function AuthPage() {
     setBusy(true);
     const auth = getFirebaseAuth();
     void signInWithEmailAndPassword(auth, email.trim(), password)
-      .then(() => router.replace("/notes?filter=unchecked"))
+      .then(() => router.replace("/notes"))
       .catch((err: unknown) => {
         setFormError(formatAuthError(err, "ログインに失敗しました。"));
       })
@@ -69,7 +69,7 @@ export default function AuthPage() {
     setBusy(true);
     const auth = getFirebaseAuth();
     void createUserWithEmailAndPassword(auth, email.trim(), password)
-      .then(() => router.replace("/notes?filter=unchecked"))
+      .then(() => router.replace("/notes"))
       .catch((err: unknown) => {
         setFormError(formatAuthError(err, "登録に失敗しました。"));
       })
