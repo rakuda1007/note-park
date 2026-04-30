@@ -11,8 +11,8 @@ import { deleteNote, listNotes, updateNote } from "@/lib/note/repository";
 import type { NoteLine, NoteListItem } from "@/lib/types/note";
 
 type LineFilter = "all" | "checked" | "unchecked";
-/** URL に filter が無いとき。すべて表示しないと「全行チェック済み」のメモだけが消えたように見える */
-const DEFAULT_LINE_FILTER: LineFilter = "all";
+/** URL に filter が無いとき。初期表示は未チェックを優先する */
+const DEFAULT_LINE_FILTER: LineFilter = "unchecked";
 
 const LIST_FETCH_TIMEOUT_MS = 30_000;
 
@@ -80,7 +80,7 @@ export default function NotesListPage() {
 
   const resetListFilters = useCallback(() => {
     setListSearch("");
-    setLineFilter("all");
+    setLineFilter(DEFAULT_LINE_FILTER);
   }, [setLineFilter]);
 
   const filteredItems = useMemo(() => {
@@ -296,7 +296,7 @@ export default function NotesListPage() {
                     className="rounded-lg border border-teal-700/60 px-3 py-2 text-sm text-teal-100 hover:bg-teal-900/50"
                     onClick={() => resetListFilters()}
                   >
-                    検索・絞り込みをリセットして全 {items.length} 件を表示
+                    検索・絞り込みをリセット
                   </button>
                 ) : null}
               </div>
