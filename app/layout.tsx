@@ -1,9 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
 import PwaResumeHandler from "@/components/PwaResumeHandler";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import "./globals.css";
+
+const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim() ?? "";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,6 +50,22 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-dvh antialiased`}
       >
+        {GA_MEASUREMENT_ID ? (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GA_MEASUREMENT_ID)}`}
+              strategy="afterInteractive"
+            />
+            <Script id="note-park-ga4-init" strategy="afterInteractive">
+              {`
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag("js", new Date());
+gtag("config", ${JSON.stringify(GA_MEASUREMENT_ID)});
+`}
+            </Script>
+          </>
+        ) : null}
         <ServiceWorkerRegister />
         <PwaResumeHandler />
         <AppErrorBoundary>
