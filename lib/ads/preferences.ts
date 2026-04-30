@@ -2,6 +2,7 @@ const ADS_HIDDEN_KEY = "note-park-ads-hidden";
 const ADS_SETTINGS_ENABLED_KEY = "note-park-ads-settings-enabled";
 const ADS_PREFS_VERSION_KEY = "note-park-ads-prefs-version";
 const ADS_PREFS_VERSION = "1";
+const ADMIN_MODE_KEY = "note-park-admin-mode-enabled";
 
 function isClient(): boolean {
   return typeof window !== "undefined";
@@ -57,9 +58,51 @@ export function isAdSettingsUnlockedByQuery(): boolean {
   return params.get("adsettings") === "1";
 }
 
+export function isAdminModeEnabled(): boolean {
+  if (!isClient()) return false;
+  return window.localStorage.getItem(ADMIN_MODE_KEY) === "1";
+}
+
+export function setAdminModeEnabled(enabled: boolean): void {
+  if (!isClient()) return;
+  window.localStorage.setItem(ADMIN_MODE_KEY, enabled ? "1" : "0");
+}
+
+function getAdminPinSha256(): string {
+  return (process.env.NEXT_PUBLIC_ADMIN_PIN_SHA256 ?? "").trim().toLowerCase();
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export async function verifyAdminPin(pin: string): Promise<{ ok: boolean; message: string }> {
+  const normalized = pin.trim();
+  if (!normalized) {
+    return { ok: false, message: "PINを入力してください。" };
+  }
+  const expected = getAdminPinSha256();
+  if (!expected) {
+    return { ok: false, message: "管理者PINが未設定です。運営にお問い合わせください。" };
+  }
+  const actual = await sha256Hex(normalized);
+  if (actual !== expected) {
+    return { ok: false, message: "PINが一致しません。" };
+  }
+  return { ok: true, message: "管理者モードを有効化しました。" };
+}
+
 export function isAdSettingsEnabledForCurrentUser(): boolean {
   if (process.env.NODE_ENV !== "production") return true;
   if (!isClient()) return false;
+  if (isAdminModeEnabled()) {
+    window.localStorage.setItem(ADS_SETTINGS_ENABLED_KEY, "1");
+    return true;
+  }
   if (isAdSettingsUnlockedByQuery()) {
     window.localStorage.setItem(ADS_SETTINGS_ENABLED_KEY, "1");
     return true;

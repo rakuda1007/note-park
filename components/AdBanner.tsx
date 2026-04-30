@@ -15,14 +15,17 @@ import {
   getAdSenseEditorSize,
   getAdSenseEditorSlot,
   initAdsPreferences,
+  isAdminModeEnabled,
   isAdSenseConfigured,
   isAdsEnabledByEnv,
   isAdsForceHiddenByEnv,
   isAdsHiddenByUser,
   isAdSettingsEnabledForCurrentUser,
   isIosStandalonePwa,
+  setAdminModeEnabled,
   setAdsHiddenByUser,
   shouldDisableAdsInIosPwa,
+  verifyAdminPin,
 } from "@/lib/ads/preferences";
 
 declare global {
@@ -44,6 +47,10 @@ export default function AdBanner() {
   const [licenseKey, setLicenseKey] = useState("");
   const [licenseBusy, setLicenseBusy] = useState(false);
   const [licenseMessage, setLicenseMessage] = useState<string | null>(null);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminPin, setAdminPin] = useState("");
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [adminMessage, setAdminMessage] = useState<string | null>(null);
   const adRequestedRef = useRef(false);
   const adInsRef = useRef<HTMLModElement | null>(null);
 
@@ -61,6 +68,9 @@ export default function AdBanner() {
     setLicenseKey(getSavedLicenseKey());
     setHiddenByUser(isAdsHiddenByUser());
     setSettingsEnabled(isAdSettingsEnabledForCurrentUser());
+    if (isAdminModeEnabled()) {
+      setAdminMessage("この端末で管理者モードが有効です。");
+    }
     setIosPwaBlocked(disableAdsInIosPwa && isIosStandalonePwa());
     setReady(true);
   }, [disableAdsInIosPwa]);
@@ -153,6 +163,19 @@ export default function AdBanner() {
         <div className="rounded-md border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-400">
           <p className="mb-1 text-zinc-300">広告設定</p>
           <p className="text-zinc-500">現在の状態: {getAdsDisplayStatusLabel(displayStatus)}</p>
+          <div className="mt-2">
+            <button
+              type="button"
+              className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+              onClick={() => {
+                setAdminModeEnabled(false);
+                setSettingsEnabled(false);
+                setAdminMessage("管理者モードを解除しました。");
+              }}
+            >
+              管理者モードを解除
+            </button>
+          </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -240,6 +263,50 @@ export default function AdBanner() {
         <div className="rounded-md border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-500">
           <p className="text-zinc-300">広告設定</p>
           <p className="mt-1">現在の状態: {getAdsDisplayStatusLabel(displayStatus)}</p>
+          <div className="mt-2">
+            <button
+              type="button"
+              className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-800"
+              onClick={() => setAdminOpen((v) => !v)}
+            >
+              管理者モードを開く
+            </button>
+            {adminOpen ? (
+              <div className="mt-2 space-y-2 rounded-md border border-zinc-700/70 bg-zinc-900/70 p-2">
+                <p className="text-zinc-400">PINを入力すると、この端末で広告設定を変更できます。</p>
+                <input
+                  type="password"
+                  className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-100 outline-none focus:border-teal-600"
+                  value={adminPin}
+                  onChange={(e) => setAdminPin(e.target.value)}
+                  placeholder="管理者PIN"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={adminBusy}
+                    className="rounded-md bg-teal-700 px-2 py-1 text-xs text-white disabled:opacity-50"
+                    onClick={() => {
+                      setAdminBusy(true);
+                      setAdminMessage(null);
+                      void verifyAdminPin(adminPin)
+                        .then((result) => {
+                          setAdminMessage(result.message);
+                          if (!result.ok) return;
+                          setAdminModeEnabled(true);
+                          setSettingsEnabled(true);
+                          setAdminPin("");
+                        })
+                        .finally(() => setAdminBusy(false));
+                    }}
+                  >
+                    {adminBusy ? "確認中…" : "管理者モードを有効化"}
+                  </button>
+                </div>
+                {adminMessage ? <p className="text-xs text-zinc-300">{adminMessage}</p> : null}
+              </div>
+            ) : null}
+          </div>
         </div>
       )}
     </section>
