@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import AdBanner from "@/components/AdBanner";
 import AppHeader from "@/components/AppHeader";
 import {
   createNote,
@@ -460,6 +461,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
             <div className="mt-4">
               <p className="text-xs text-zinc-500">変更はこの端末に自動保存されます（空にすると保存されません）</p>
             </div>
+            <AdBanner />
           </>
         )}
       </main>
