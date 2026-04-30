@@ -93,6 +93,7 @@ export function initAdsPreferences(): void {
 export type AdsDisplayStatus =
   | "hidden_by_env"
   | "hidden_by_ios_pwa"
+  | "hidden_by_purchase"
   | "hidden_by_user"
   | "disabled_by_env"
   | "visible";
@@ -103,6 +104,8 @@ export function getAdsDisplayStatusLabel(status: AdsDisplayStatus): string {
       return "環境設定で常に非表示";
     case "hidden_by_ios_pwa":
       return "iOSホーム画面アプリでは非表示";
+    case "hidden_by_purchase":
+      return "購入状態により非表示";
     case "hidden_by_user":
       return "ユーザー設定で非表示";
     case "disabled_by_env":
