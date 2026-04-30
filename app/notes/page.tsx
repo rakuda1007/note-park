@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import AppHeader from "@/components/AppHeader";
+import { trackEvent } from "@/lib/analytics/gtag";
 import {
   deleteNote,
   getLocalOwnerId,
@@ -44,6 +45,7 @@ export default function NotesListPage() {
 
   const loadSeqRef = useRef(0);
   const mountedRef = useRef(true);
+  const hasTrackedListViewRef = useRef(false);
 
   useLayoutEffect(() => {
     setLineFilterState(readFilterFromLocation());
@@ -137,6 +139,15 @@ export default function NotesListPage() {
   useEffect(() => {
     loadList();
   }, [loadList]);
+
+  useEffect(() => {
+    if (loading || listError || hasTrackedListViewRef.current) return;
+    hasTrackedListViewRef.current = true;
+    trackEvent("notes_list_viewed", {
+      item_count: items.length,
+      list_filter: lineFilter,
+    });
+  }, [items.length, lineFilter, listError, loading]);
 
   const handleToggleOnlyLine = useCallback(
     async (item: NoteListItem) => {

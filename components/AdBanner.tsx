@@ -27,6 +27,7 @@ import {
   shouldDisableAdsInIosPwa,
   verifyAdminPin,
 } from "@/lib/ads/preferences";
+import { setUserProperties, trackEvent } from "@/lib/analytics/gtag";
 
 declare global {
   interface Window {
@@ -53,6 +54,7 @@ export default function AdBanner() {
   const [adminMessage, setAdminMessage] = useState<string | null>(null);
   const adRequestedRef = useRef(false);
   const adInsRef = useRef<HTMLModElement | null>(null);
+  const lastTrackedStatusRef = useRef<string | null>(null);
 
   const forceHidden = useMemo(() => isAdsForceHiddenByEnv(), []);
   const adsEnabled = useMemo(() => isAdsEnabledByEnv(), []);
@@ -113,6 +115,24 @@ export default function AdBanner() {
     }, 5000);
     return () => window.clearTimeout(timer);
   }, [scriptReady, shouldShowAds]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (lastTrackedStatusRef.current === displayStatus) return;
+    lastTrackedStatusRef.current = displayStatus;
+
+    setUserProperties({
+      ad_status: displayStatus,
+      ad_free_user: adFree ? "yes" : "no",
+    });
+    trackEvent("ad_status_updated", {
+      ad_status: displayStatus,
+      ad_free_user: adFree,
+      ads_enabled: adsEnabled,
+      ad_sense_configured: adSenseConfigured,
+      ios_pwa_blocked: iosPwaBlocked,
+    });
+  }, [adFree, adSenseConfigured, adsEnabled, displayStatus, iosPwaBlocked, ready]);
 
   if (!ready) return null;
 

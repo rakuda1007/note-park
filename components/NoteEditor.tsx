@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import AdBanner from "@/components/AdBanner";
+import { trackEvent } from "@/lib/analytics/gtag";
 import AppHeader from "@/components/AppHeader";
 import {
   createNote,
@@ -115,6 +116,11 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   }, [mode]);
 
   useEffect(() => {
+    if (mode !== "new") return;
+    trackEvent("note_editor_viewed", { screen_name: "note_editor" });
+  }, [mode]);
+
+  useEffect(() => {
     if (mode !== "edit" || !initialNoteId) return;
 
     let cancelled = false;
@@ -169,6 +175,11 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
         id = await createNote(ownerId, payload);
         setRemoteId(id);
         remoteIdRef.current = id;
+        trackEvent("note_created", {
+          from_screen: mode === "new" ? "note_editor" : "note_edit",
+          line_count: payload.lines.length,
+          has_title: payload.title.length > 0,
+        });
       } else {
         await updateNote(id, ownerId, payload);
       }
