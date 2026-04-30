@@ -4,7 +4,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import AppHeader from "@/components/AppHeader";
-import { deleteNote, getLocalOwnerId, listNotes, updateNote } from "@/lib/note/repository";
+import {
+  deleteNote,
+  getLocalOwnerId,
+  listNotes,
+  migrateFirestoreNotesToIndexedDB,
+  updateNote,
+} from "@/lib/note/repository";
 import type { NoteLine, NoteListItem } from "@/lib/types/note";
 
 type LineFilter = "all" | "checked" | "unchecked";
@@ -12,6 +18,7 @@ type LineFilter = "all" | "checked" | "unchecked";
 const DEFAULT_LINE_FILTER: LineFilter = "unchecked";
 
 const LIST_FETCH_TIMEOUT_MS = 30_000;
+const LEGACY_FIRESTORE_OWNER_ID = process.env.NEXT_PUBLIC_LEGACY_FIRESTORE_OWNER_ID?.trim() ?? "";
 
 function parseLineFilter(requested: string | null): LineFilter {
   if (requested === "all" || requested === "checked" || requested === "unchecked") {
@@ -35,6 +42,8 @@ export default function NotesListPage() {
   const [listSearch, setListSearch] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  const [rescueInfo, setRescueInfo] = useState<string | null>(null);
+  const [rescueError, setRescueError] = useState<string | null>(null);
   const ownerId = getLocalOwnerId();
 
   const loadSeqRef = useRef(0);
@@ -133,6 +142,30 @@ export default function NotesListPage() {
     loadList();
   }, [loadList]);
 
+  useEffect(() => {
+    if (!LEGACY_FIRESTORE_OWNER_ID) return;
+    let cancelled = false;
+    void migrateFirestoreNotesToIndexedDB(LEGACY_FIRESTORE_OWNER_ID)
+      .then(({ migrated }) => {
+        if (cancelled) return;
+        if (migrated > 0) {
+          setRescueInfo(`過去データを ${migrated} 件インポートしました。`);
+          void loadList();
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Firestore からのデータ取り込みに失敗しました。";
+        setRescueError(message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadList]);
+
   const handleToggleOnlyLine = useCallback(
     async (item: NoteListItem) => {
       if (item.lineCount !== 1 || !item.onlyLine) return;
@@ -204,6 +237,16 @@ export default function NotesListPage() {
         <h1 className="mb-4 text-sm font-medium uppercase tracking-wide text-zinc-500">
           ノート一覧
         </h1>
+        {rescueInfo ? (
+          <p className="mb-3 rounded-md border border-teal-700/50 bg-teal-950/40 px-3 py-2 text-sm text-teal-100">
+            {rescueInfo}
+          </p>
+        ) : null}
+        {rescueError ? (
+          <p className="mb-3 rounded-md border border-amber-700/50 bg-amber-950/40 px-3 py-2 text-sm text-amber-100">
+            復元に失敗しました: {rescueError}
+          </p>
+        ) : null}
         {listError ? (
           <div className="space-y-3">
             <p className="whitespace-pre-wrap rounded-md bg-red-950/50 px-3 py-2 text-sm text-red-100">

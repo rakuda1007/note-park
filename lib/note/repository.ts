@@ -1,4 +1,6 @@
 import type { NoteLine, NoteListItem, NotePayload } from "@/lib/types/note";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { getFirestoreDb, isFirebaseConfigured } from "@/lib/firebase/client";
 
 const LOCAL_OWNER = "local";
 const LOCAL_STORAGE_KEY = "note-park-notes-v1";
@@ -8,6 +10,7 @@ const NOTES_STORE = "notes";
 const META_STORE = "app_meta";
 const META_MIGRATION_KEY = "migration.localStorageToIndexedDB";
 const META_MIGRATION_DONE = "v1_done";
+const META_FIRESTORE_MIGRATION_PREFIX = "migration.firestoreToIndexedDB";
 
 type StoredNote = NotePayload & {
   id: string;
@@ -23,6 +26,7 @@ type MetaRow = {
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 let migrationPromise: Promise<void> | null = null;
+const firestoreMigrationInFlight = new Map<string, Promise<{ migrated: number }>>();
 
 function idbRequest<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -200,6 +204,65 @@ async function ensureLocalStorageMigration(): Promise<void> {
     migrationPromise = null;
   });
   return migrationPromise;
+}
+
+function firestoreMigrationMetaKey(ownerId: string): string {
+  return `${META_FIRESTORE_MIGRATION_PREFIX}.${ownerId}`;
+}
+
+/**
+ * 旧 Firestore (notes.ownerId == ownerId) から IndexedDB へ一度だけ取り込む。
+ * 既存 id は上書きしない（ローカル編集を優先）。
+ */
+export async function migrateFirestoreNotesToIndexedDB(
+  ownerId: string,
+): Promise<{ migrated: number }> {
+  if (typeof window === "undefined") return { migrated: 0 };
+  if (!ownerId) return { migrated: 0 };
+  if (!isFirebaseConfigured()) return { migrated: 0 };
+
+  const existing = firestoreMigrationInFlight.get(ownerId);
+  if (existing) return existing;
+
+  const run = (async () => {
+    await ensureLocalStorageMigration();
+    const key = firestoreMigrationMetaKey(ownerId);
+    const done = await getMetaValue(key);
+    if (done === META_MIGRATION_DONE) return { migrated: 0 };
+
+    const db = await openDb();
+    const q = query(collection(getFirestoreDb(), "notes"), where("ownerId", "==", ownerId));
+    const snap = await getDocs(q);
+
+    const tx = db.transaction(NOTES_STORE, "readwrite");
+    const store = tx.objectStore(NOTES_STORE);
+    let migrated = 0;
+
+    for (const d of snap.docs) {
+      const row = sanitizeStoredNote({
+        id: d.id,
+        ownerId,
+        title: d.data().title,
+        lines: d.data().lines,
+        createdAt: d.data().createdAt?.toMillis?.() ?? Date.now(),
+        updatedAt: d.data().updatedAt?.toMillis?.() ?? Date.now(),
+      });
+      if (!row) continue;
+
+      const exists = await idbRequest(store.get(row.id));
+      if (exists) continue;
+      store.put(row);
+      migrated += 1;
+    }
+    await idbTxDone(tx);
+    await setMetaValue(key, META_MIGRATION_DONE);
+    return { migrated };
+  })().finally(() => {
+    firestoreMigrationInFlight.delete(ownerId);
+  });
+
+  firestoreMigrationInFlight.set(ownerId, run);
+  return run;
 }
 
 export async function fetchNote(
