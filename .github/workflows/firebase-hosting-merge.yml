@@ -40,6 +40,8 @@ jobs:
           NEXT_PUBLIC_ADSENSE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_ADSENSE_CLIENT_ID }}
           NEXT_PUBLIC_ADSENSE_SLOT_EDITOR: ${{ secrets.NEXT_PUBLIC_ADSENSE_SLOT_EDITOR }}
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+          # 任意: 未設定のままでもビルドは通る。設定すると本番でも管理者PINが使える。
+          NEXT_PUBLIC_ADMIN_PIN_SHA256: ${{ secrets.NEXT_PUBLIC_ADMIN_PIN_SHA256 }}
 
       - run: npm ci && npm run build
         env:
@@ -52,6 +54,7 @@ jobs:
           NEXT_PUBLIC_ADSENSE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_ADSENSE_CLIENT_ID }}
           NEXT_PUBLIC_ADSENSE_SLOT_EDITOR: ${{ secrets.NEXT_PUBLIC_ADSENSE_SLOT_EDITOR }}
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+          NEXT_PUBLIC_ADMIN_PIN_SHA256: ${{ secrets.NEXT_PUBLIC_ADMIN_PIN_SHA256 }}
 
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:

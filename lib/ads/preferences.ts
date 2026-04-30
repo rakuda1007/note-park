@@ -87,7 +87,11 @@ export async function verifyAdminPin(pin: string): Promise<{ ok: boolean; messag
   }
   const expected = getAdminPinSha256();
   if (!expected) {
-    return { ok: false, message: "管理者PINが未設定です。運営にお問い合わせください。" };
+    return {
+      ok: false,
+      message:
+        "管理者PIN用の環境変数 NEXT_PUBLIC_ADMIN_PIN_SHA256 が空です。開発では .env.local に PIN の SHA-256（16進・小文字可）を設定して dev サーバーを再起動し、本番では GitHub Actions のビルド env に同変数を渡してください。",
+    };
   }
   const actual = await sha256Hex(normalized);
   if (actual !== expected) {
