@@ -39,8 +39,6 @@ export default function AdBanner() {
     setReady(true);
   }, []);
 
-  if (!ready) return null;
-
   const shouldShowAds = adsEnabled && !forceHidden && !hiddenByUser;
   const canControlVisibility = settingsEnabled;
 
@@ -55,6 +53,8 @@ export default function AdBanner() {
       // 広告ブロッカー等で push 失敗しても編集画面の利用を妨げない
     }
   }, [adSenseConfigured, scriptReady, shouldShowAds]);
+
+  if (!ready) return null;
 
   return (
     <section className="mt-6 space-y-2">
