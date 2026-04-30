@@ -11,7 +11,9 @@ import {
   isAdsForceHiddenByEnv,
   isAdsHiddenByUser,
   isAdSettingsEnabledForCurrentUser,
+  isIosStandalonePwa,
   setAdsHiddenByUser,
+  shouldDisableAdsInIosPwa,
 } from "@/lib/ads/preferences";
 
 declare global {
@@ -25,6 +27,9 @@ export default function AdBanner() {
   const [hiddenByUser, setHiddenByUser] = useState(false);
   const [settingsEnabled, setSettingsEnabled] = useState(false);
   const [scriptReady, setScriptReady] = useState(false);
+  const [scriptFailed, setScriptFailed] = useState(false);
+  const [noFillDetected, setNoFillDetected] = useState(false);
+  const [iosPwaBlocked, setIosPwaBlocked] = useState(false);
   const adRequestedRef = useRef(false);
   const adInsRef = useRef<HTMLModElement | null>(null);
 
@@ -34,14 +39,16 @@ export default function AdBanner() {
   const adClient = useMemo(() => getAdSenseClientId(), []);
   const adSlot = useMemo(() => getAdSenseEditorSlot(), []);
   const adSize = useMemo(() => getAdSenseEditorSize(), []);
+  const disableAdsInIosPwa = useMemo(() => shouldDisableAdsInIosPwa(), []);
 
   useEffect(() => {
     setHiddenByUser(isAdsHiddenByUser());
     setSettingsEnabled(isAdSettingsEnabledForCurrentUser());
+    setIosPwaBlocked(disableAdsInIosPwa && isIosStandalonePwa());
     setReady(true);
-  }, []);
+  }, [disableAdsInIosPwa]);
 
-  const shouldShowAds = adsEnabled && !forceHidden && !hiddenByUser;
+  const shouldShowAds = adsEnabled && !forceHidden && !hiddenByUser && !iosPwaBlocked;
   const canControlVisibility = settingsEnabled;
 
   useEffect(() => {
@@ -56,6 +63,19 @@ export default function AdBanner() {
     }
   }, [adSenseConfigured, scriptReady, shouldShowAds]);
 
+  useEffect(() => {
+    if (!shouldShowAds || !scriptReady || !adInsRef.current) return;
+    const timer = window.setTimeout(() => {
+      const el = adInsRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.height < 20) {
+        setNoFillDetected(true);
+      }
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [scriptReady, shouldShowAds]);
+
   if (!ready) return null;
 
   return (
@@ -68,10 +88,11 @@ export default function AdBanner() {
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(adClient)}`}
           crossOrigin="anonymous"
           onLoad={() => setScriptReady(true)}
+          onError={() => setScriptFailed(true)}
         />
       ) : null}
 
-      {shouldShowAds ? (
+      {shouldShowAds && !scriptFailed && !noFillDetected ? (
         adSenseConfigured ? (
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-2" aria-label="広告エリア">
             <div className="mx-auto w-fit overflow-hidden rounded">
@@ -116,6 +137,11 @@ export default function AdBanner() {
           </label>
           <p className="mt-1 text-zinc-500">広告サイズ: {adSize.label}</p>
           {forceHidden ? <p className="mt-1 text-amber-300">環境設定により広告は常に非表示です。</p> : null}
+          {iosPwaBlocked ? (
+            <p className="mt-1 text-zinc-500">iOS のホーム画面アプリでは広告を抑止しています。</p>
+          ) : null}
+          {scriptFailed ? <p className="mt-1 text-zinc-500">広告スクリプトの読み込みに失敗しました。</p> : null}
+          {noFillDetected ? <p className="mt-1 text-zinc-500">この環境では広告の配信がありませんでした。</p> : null}
         </div>
       ) : null}
     </section>

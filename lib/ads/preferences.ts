@@ -13,6 +13,11 @@ export function isAdsForceHiddenByEnv(): boolean {
   return process.env.NEXT_PUBLIC_ADS_FORCE_HIDE === "1";
 }
 
+export function shouldDisableAdsInIosPwa(): boolean {
+  // 既定は無効化（iOS PWA で Heavy Ad になりやすいため）
+  return process.env.NEXT_PUBLIC_ADS_DISABLE_IOS_PWA !== "0";
+}
+
 export function getAdSenseClientId(): string {
   return (process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ?? "").trim();
 }
@@ -33,6 +38,15 @@ export function getAdSenseEditorSize(): AdSenseSize {
     return { width: 300, height: 250, label: "300x250" };
   }
   return { width: 320, height: 100, label: "320x100" };
+}
+
+export function isIosStandalonePwa(): boolean {
+  if (!isClient()) return false;
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  const standaloneByNavigator = nav.standalone === true;
+  const standaloneByMedia = window.matchMedia("(display-mode: standalone)").matches;
+  const isiOS = /iPhone|iPad|iPod/i.test(window.navigator.userAgent);
+  return isiOS && (standaloneByNavigator || standaloneByMedia);
 }
 
 export function isAdSettingsUnlockedByQuery(): boolean {
