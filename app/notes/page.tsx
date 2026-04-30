@@ -4,10 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import AppHeader from "@/components/AppHeader";
-import AuthToolbar from "@/components/AuthToolbar";
-import LocalMigrationErrorBanner from "@/components/LocalMigrationErrorBanner";
-import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
-import { deleteNote, listNotes, updateNote } from "@/lib/note/repository";
+import { deleteNote, getLocalOwnerId, listNotes, updateNote } from "@/lib/note/repository";
 import type { NoteLine, NoteListItem } from "@/lib/types/note";
 
 type LineFilter = "all" | "checked" | "unchecked";
@@ -31,7 +28,6 @@ function readFilterFromLocation(): LineFilter {
 export default function NotesListPage() {
   const router = useRouter();
   const pathname = usePathname();
-  const auth = useNoteAuth();
   const [lineFilter, setLineFilterState] = useState<LineFilter>(DEFAULT_LINE_FILTER);
   const [items, setItems] = useState<NoteListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +35,7 @@ export default function NotesListPage() {
   const [listSearch, setListSearch] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
-  const ownerId = auth.status === "ready" && auth.ownerId ? auth.ownerId : null;
+  const ownerId = getLocalOwnerId();
 
   const loadSeqRef = useRef(0);
   const mountedRef = useRef(true);
@@ -102,7 +98,6 @@ export default function NotesListPage() {
   }, [items, listSearch, lineFilter]);
 
   const loadList = useCallback(() => {
-    if (!ownerId) return;
     const seq = ++loadSeqRef.current;
     setLoading(true);
     setListError(null);
@@ -140,7 +135,7 @@ export default function NotesListPage() {
 
   const handleToggleOnlyLine = useCallback(
     async (item: NoteListItem) => {
-      if (!ownerId || item.lineCount !== 1 || !item.onlyLine) return;
+      if (item.lineCount !== 1 || !item.onlyLine) return;
       const line = item.onlyLine;
       const nextChecked = !line.checked;
       const nextLine: NoteLine = { text: line.text, checked: nextChecked };
@@ -175,7 +170,6 @@ export default function NotesListPage() {
 
   const handleDelete = useCallback(
     async (noteId: string) => {
-      if (!ownerId) return;
       if (!window.confirm("このノートを削除しますか？")) return;
       setDeletingId(noteId);
       try {
@@ -196,8 +190,6 @@ export default function NotesListPage() {
         showPortalLink
         end={
           <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2.5">
-            <AuthToolbar />
-            <div className="h-4 w-px shrink-0 self-center bg-teal-800/50" aria-hidden="true" />
             <Link
               href="/"
               title="白紙のメモを開く"
@@ -212,14 +204,7 @@ export default function NotesListPage() {
         <h1 className="mb-4 text-sm font-medium uppercase tracking-wide text-zinc-500">
           ノート一覧
         </h1>
-        <LocalMigrationErrorBanner />
-        {auth.status === "loading" || auth.status === "migrating" ? (
-          <p className="text-zinc-400">
-            {auth.status === "migrating" ? "未ログイン時のメモを同期しています…" : "読み込み中…"}
-          </p>
-        ) : auth.status === "error" ? (
-          <p className="text-red-200">{auth.message}</p>
-        ) : listError ? (
+        {listError ? (
           <div className="space-y-3">
             <p className="whitespace-pre-wrap rounded-md bg-red-950/50 px-3 py-2 text-sm text-red-100">
               {listError}

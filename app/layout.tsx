@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
-import { NoteAuthProvider } from "@/lib/contexts/NoteAuthContext";
 import PwaResumeHandler from "@/components/PwaResumeHandler";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import "./globals.css";
@@ -51,7 +50,7 @@ export default function RootLayout({
         <ServiceWorkerRegister />
         <PwaResumeHandler />
         <AppErrorBoundary>
-          <NoteAuthProvider>{children}</NoteAuthProvider>
+          {children}
         </AppErrorBoundary>
       </body>
     </html>

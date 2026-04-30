@@ -2,15 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AppHeader from "@/components/AppHeader";
-import AuthToolbar from "@/components/AuthToolbar";
-import LocalMigrationErrorBanner from "@/components/LocalMigrationErrorBanner";
-import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
 import {
   createNote,
   deleteNote,
   fetchNote,
+  getLocalOwnerId,
   updateNote,
 } from "@/lib/note/repository";
 import type { NoteLine } from "@/lib/types/note";
@@ -58,7 +56,6 @@ type Props = {
 
 export default function NoteEditor({ mode, initialNoteId }: Props) {
   const router = useRouter();
-  const auth = useNoteAuth();
   const [title, setTitle] = useState("");
   const [lines, setLines] = useState<InternalLine[]>(() => [newEmptyLine()]);
   const [remoteId, setRemoteId] = useState<string | null>(null);
@@ -76,7 +73,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   titleRef.current = title;
   remoteIdRef.current = remoteId;
 
-  const ownerId = auth.status === "ready" && auth.ownerId ? auth.ownerId : null;
+  const ownerId = getLocalOwnerId();
 
   const focusLine = useCallback((index: number, caret?: number) => {
     requestAnimationFrame(() => {
@@ -108,11 +105,6 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   }, [mode, loadingNote, focusLine]);
 
   useEffect(() => {
-    if (mode !== "new" || loadingNote) return;
-    if (auth.status !== "ready") return;
-    focusLine(0, 0);
-  }, [auth.status, mode, loadingNote, focusLine]);
-  useEffect(() => {
     if (mode !== "new") return;
     setTitle("");
     setLines([newEmptyLine()]);
@@ -123,7 +115,6 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
 
   useEffect(() => {
     if (mode !== "edit" || !initialNoteId) return;
-    if (auth.status !== "ready" || !ownerId) return;
 
     let cancelled = false;
     setLoadingNote(true);
@@ -149,19 +140,17 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [mode, initialNoteId, auth.status, ownerId]);
+  }, [mode, initialNoteId, ownerId]);
 
   const persist = useCallback(async (): Promise<boolean> => {
     const t = titleRef.current;
     const ls = linesSnapshotRef.current;
     let id = remoteIdRef.current;
-    const uid = ownerId;
-    if (!uid) return false;
 
     if (!hasMeaningfulContent(ls, t)) {
       if (id) {
         try {
-          await deleteNote(id, uid);
+          await deleteNote(id, ownerId);
         } catch {
           return false;
         }
@@ -176,11 +165,11 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
 
     try {
       if (!id) {
-        id = await createNote(uid, payload);
+        id = await createNote(ownerId, payload);
         setRemoteId(id);
         remoteIdRef.current = id;
       } else {
-        await updateNote(id, uid, payload);
+        await updateNote(id, ownerId, payload);
       }
       return true;
     } catch {
@@ -200,13 +189,12 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   }, [persist]);
 
   useEffect(() => {
-    if (auth.status !== "ready" || !ownerId) return;
     if (mode === "edit" && loadingNote) return;
     schedulePersist();
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [title, lines, auth.status, ownerId, mode, loadingNote, schedulePersist]);
+  }, [title, lines, mode, loadingNote, schedulePersist]);
 
   useEffect(() => {
     return () => {
@@ -324,8 +312,6 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
 
   const canContinueNext =
     mode === "new" &&
-    auth.status === "ready" &&
-    Boolean(ownerId) &&
     !loadingNote &&
     hasMeaningfulContent(lines, title);
 
@@ -358,34 +344,6 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     setContinueError(null);
   }, [lines, title]);
 
-  const statusBanner = useMemo(() => {
-    if (auth.status === "loading") {
-      return (
-        <p className="rounded-md bg-teal-900/40 px-3 py-2 text-sm text-teal-100">準備中…</p>
-      );
-    }
-    if (auth.status === "migrating") {
-      return (
-        <p className="rounded-md bg-teal-900/40 px-3 py-2 text-sm text-teal-100">
-          未ログイン時のメモを同期しています…
-        </p>
-      );
-    }
-    if (auth.status === "error") {
-      return (
-        <p className="rounded-md bg-red-950/50 px-3 py-2 text-sm text-red-100">{auth.message}</p>
-      );
-    }
-    if (auth.isCloud) {
-      return (
-        <p className="text-xs text-zinc-500">変更は自動保存されます（空にすると保存されません）</p>
-      );
-    }
-    return (
-      <p className="text-xs text-amber-200/90">ログイン前はこの端末内（localStorage）のみに保存します</p>
-    );
-  }, [auth]);
-
   if (loadError) {
     return (
       <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
@@ -393,10 +351,8 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
           showPortalLink
           end={
             <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
-              <AuthToolbar />
-              <div className="h-4 w-px shrink-0 self-center bg-teal-800/50" aria-hidden="true" />
               <Link
-                href="/notes"
+                href="/notes?filter=unchecked"
                 title="保存したメモの一覧"
                 className="text-sm text-teal-200 hover:underline"
               >
@@ -407,7 +363,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
         />
         <main className="mx-auto w-full min-w-0 max-w-lg px-4 py-8">
           <p className="text-red-200">{loadError}</p>
-          <Link href="/notes" className="mt-4 inline-block text-teal-300 underline">
+          <Link href="/notes?filter=unchecked" className="mt-4 inline-block text-teal-300 underline">
             一覧に戻る
           </Link>
         </main>
@@ -421,10 +377,8 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
         showPortalLink
         end={
           <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2.5">
-            <AuthToolbar />
-            <div className="h-4 w-px shrink-0 self-center bg-teal-800/50" aria-hidden="true" />
             <Link
-              href="/notes"
+              href="/notes?filter=unchecked"
               title="保存したメモの一覧"
               className="rounded-md px-2 py-1.5 text-sm font-medium text-teal-100 hover:bg-teal-900/50 sm:px-3"
             >
@@ -434,7 +388,6 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
         }
       />
       <main className="mx-auto w-full min-w-0 max-w-lg px-4 pb-16 pt-4">
-        <LocalMigrationErrorBanner />
         {loadingNote ? (
           <p className="text-zinc-400">読み込み中…</p>
         ) : (
@@ -504,7 +457,9 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
                 ) : null}
               </div>
             )}
-            <div className="mt-4">{statusBanner}</div>
+            <div className="mt-4">
+              <p className="text-xs text-zinc-500">変更はこの端末に自動保存されます（空にすると保存されません）</p>
+            </div>
           </>
         )}
       </main>
