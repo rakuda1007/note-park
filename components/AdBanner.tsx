@@ -137,7 +137,7 @@ export default function AdBanner() {
   if (!ready) return null;
 
   return (
-    <section className="mt-6 space-y-2">
+    <section className="mt-10 space-y-2 sm:mt-6">
       {shouldShowAds && adSenseConfigured ? (
         <Script
           id="note-park-adsense-loader"
