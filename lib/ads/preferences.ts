@@ -25,6 +25,16 @@ export function isAdSenseConfigured(): boolean {
   return getAdSenseClientId().length > 0 && getAdSenseEditorSlot().length > 0;
 }
 
+export type AdSenseSize = { width: number; height: number; label: "320x100" | "300x250" };
+
+export function getAdSenseEditorSize(): AdSenseSize {
+  const raw = (process.env.NEXT_PUBLIC_ADSENSE_EDITOR_SIZE ?? "").trim();
+  if (raw === "300x250") {
+    return { width: 300, height: 250, label: "300x250" };
+  }
+  return { width: 320, height: 100, label: "320x100" };
+}
+
 export function isAdSettingsUnlockedByQuery(): boolean {
   if (!isClient()) return false;
   const params = new URLSearchParams(window.location.search);

@@ -4,6 +4,7 @@ import Script from "next/script";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getAdSenseClientId,
+  getAdSenseEditorSize,
   getAdSenseEditorSlot,
   isAdSenseConfigured,
   isAdsEnabledByEnv,
@@ -32,6 +33,7 @@ export default function AdBanner() {
   const adSenseConfigured = useMemo(() => isAdSenseConfigured(), []);
   const adClient = useMemo(() => getAdSenseClientId(), []);
   const adSlot = useMemo(() => getAdSenseEditorSlot(), []);
+  const adSize = useMemo(() => getAdSenseEditorSize(), []);
 
   useEffect(() => {
     setHiddenByUser(isAdsHiddenByUser());
@@ -71,16 +73,21 @@ export default function AdBanner() {
 
       {shouldShowAds ? (
         adSenseConfigured ? (
-          <div className="min-h-[96px] rounded-lg border border-zinc-800 bg-zinc-900/60 p-2" aria-label="広告エリア">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-2" aria-label="広告エリア">
+            <div className="mx-auto w-fit overflow-hidden rounded">
             <ins
               ref={adInsRef}
-              className="adsbygoogle block"
-              style={{ display: "block", minHeight: "80px" }}
+              className="adsbygoogle"
+              style={{
+                display: "inline-block",
+                width: `${adSize.width}px`,
+                height: `${adSize.height}px`,
+              }}
               data-ad-client={adClient}
               data-ad-slot={adSlot}
-              data-ad-format="auto"
-              data-full-width-responsive="true"
+              data-full-width-responsive="false"
             />
+            </div>
           </div>
         ) : (
           <div
@@ -107,6 +114,7 @@ export default function AdBanner() {
             />
             <span>広告を非表示にする（開発/限定ユーザー設定）</span>
           </label>
+          <p className="mt-1 text-zinc-500">広告サイズ: {adSize.label}</p>
           {forceHidden ? <p className="mt-1 text-amber-300">環境設定により広告は常に非表示です。</p> : null}
         </div>
       ) : null}
