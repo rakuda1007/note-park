@@ -11,7 +11,8 @@ import { deleteNote, listNotes, updateNote } from "@/lib/note/repository";
 import type { NoteLine, NoteListItem } from "@/lib/types/note";
 
 type LineFilter = "all" | "checked" | "unchecked";
-const DEFAULT_LINE_FILTER: LineFilter = "unchecked";
+/** URL に filter が無いとき。すべて表示しないと「全行チェック済み」のメモだけが消えたように見える */
+const DEFAULT_LINE_FILTER: LineFilter = "all";
 
 function parseLineFilter(requested: string | null): LineFilter {
   if (requested === "all" || requested === "checked" || requested === "unchecked") {

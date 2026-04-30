@@ -75,6 +75,9 @@ function lineCheckFlags(lines: NoteLine[]): {
   hasUncheckedLines: boolean;
   hasCheckedLines: boolean;
 } {
+  if (lines.length === 0) {
+    return { hasUncheckedLines: true, hasCheckedLines: false };
+  }
   let hasUncheckedLines = false;
   let hasCheckedLines = false;
   for (const l of lines) {
