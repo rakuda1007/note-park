@@ -43,6 +43,16 @@ jobs:
           # 任意: 未設定のままでもビルドは通る。設定すると本番でも管理者PINが使える。
           NEXT_PUBLIC_ADMIN_PIN_SHA256: ${{ secrets.NEXT_PUBLIC_ADMIN_PIN_SHA256 }}
 
+      - name: Admin PIN hash available for build (no secret printed)
+        run: |
+          if [ -z "${NEXT_PUBLIC_ADMIN_PIN_SHA256}" ]; then
+            echo "::warning::NEXT_PUBLIC_ADMIN_PIN_SHA256 is empty in this job. Admin PIN will not work on the deployed site. Add Repository secret NEXT_PUBLIC_ADMIN_PIN_SHA256 (64 hex chars, SHA-256 of PIN, no 0x prefix) and redeploy from main."
+          else
+            echo "::notice::NEXT_PUBLIC_ADMIN_PIN_SHA256 is set for the upcoming build (value not shown)."
+          fi
+        env:
+          NEXT_PUBLIC_ADMIN_PIN_SHA256: ${{ secrets.NEXT_PUBLIC_ADMIN_PIN_SHA256 }}
+
       - run: npm ci && npm run build
         env:
           NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}

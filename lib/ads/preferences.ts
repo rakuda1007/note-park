@@ -87,10 +87,17 @@ export async function verifyAdminPin(pin: string): Promise<{ ok: boolean; messag
   }
   const expected = getAdminPinSha256();
   if (!expected) {
+    const isLocalHost =
+      typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.hostname === "[::1]");
+    const hint = isLocalHost
+      ? "GitHub の Repository secrets はローカルのブラウザには届きません。この PC では .env.local に NEXT_PUBLIC_ADMIN_PIN_SHA256 を書き、npm run dev（または next build に渡す env）をやり直してください。"
+      : "本番サイトでは、GitHub Actions の「npm run build」に NEXT_PUBLIC_ADMIN_PIN_SHA256 が渡ったビルドで再デプロイされている必要があります。Secret 登録後に main へプッシュしたか、Actions のログでビルドが成功しているか確認してください。";
     return {
       ok: false,
-      message:
-        "管理者PIN用の環境変数 NEXT_PUBLIC_ADMIN_PIN_SHA256 が空です。開発では .env.local に PIN の SHA-256（16進・小文字可）を設定して dev サーバーを再起動し、本番では GitHub Actions のビルド env に同変数を渡してください。",
+      message: `管理者PIN用の NEXT_PUBLIC_ADMIN_PIN_SHA256 がこのビルドに含まれていません（空です）。${hint}`,
     };
   }
   const actual = await sha256Hex(normalized);
