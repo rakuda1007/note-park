@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # NEXT_PUBLIC_* はビルド時に埋め込まれる。リポジトリの Secrets に同名で 6 つ登録すること。
+      # NEXT_PUBLIC_* はビルド時に埋め込まれる。リポジトリの Secrets に同名で登録すること。
       - name: Check Firebase public env (must be non-empty)
         run: |
           for name in \
@@ -20,10 +20,11 @@ jobs:
             NEXT_PUBLIC_FIREBASE_PROJECT_ID \
             NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET \
             NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID \
-            NEXT_PUBLIC_FIREBASE_APP_ID
+            NEXT_PUBLIC_FIREBASE_APP_ID \
+            NEXT_PUBLIC_LEGACY_FIRESTORE_OWNER_ID
           do
             if [ -z "${!name}" ]; then
-              echo "::error::$name is empty. Set all six in: Repository → Settings → Secrets and variables → Actions (names must match exactly, case-sensitive), then re-run this workflow or push to main."
+              echo "::error::$name is empty. Set it in: Repository → Settings → Secrets and variables → Actions, then re-run this workflow or push to main."
               exit 1
             fi
           done
@@ -34,6 +35,8 @@ jobs:
           NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
           NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+          NEXT_PUBLIC_LEGACY_FIRESTORE_OWNER_ID: ${{ secrets.NEXT_PUBLIC_LEGACY_FIRESTORE_OWNER_ID }}
+
       - run: npm ci && npm run build
         env:
           NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
@@ -43,6 +46,7 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
           NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
           NEXT_PUBLIC_LEGACY_FIRESTORE_OWNER_ID: ${{ secrets.NEXT_PUBLIC_LEGACY_FIRESTORE_OWNER_ID }}
+
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
