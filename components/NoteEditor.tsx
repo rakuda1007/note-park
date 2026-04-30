@@ -17,14 +17,21 @@ import type { NoteLine } from "@/lib/types/note";
 
 type InternalLine = { id: string; text: string; checked: boolean };
 
+function newLineId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function newEmptyLine(): InternalLine {
-  return { id: crypto.randomUUID(), text: "", checked: false };
+  return { id: newLineId(), text: "", checked: false };
 }
 
 function linesFromPayload(rows: NoteLine[]): InternalLine[] {
   if (rows.length === 0) return [newEmptyLine()];
   return rows.map((r) => ({
-    id: crypto.randomUUID(),
+    id: newLineId(),
     text: r.text,
     checked: r.checked,
   }));
@@ -181,6 +188,9 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     }
   }, [mode, ownerId, router]);
 
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+
   const schedulePersist = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -201,9 +211,9 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      void persist();
+      void persistRef.current();
     };
-  }, [persist]);
+  }, []);
 
   const updateLine = useCallback((index: number, patch: Partial<InternalLine>) => {
     setLines((prev) => {
@@ -222,7 +232,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
         const cur = next[index];
         if (!cur) return prev;
         next[index] = { ...cur, text: left };
-        const insert = { id: crypto.randomUUID(), text: right, checked: false };
+        const insert = { id: newLineId(), text: right, checked: false };
         next.splice(index + 1, 0, insert);
         return next;
       });

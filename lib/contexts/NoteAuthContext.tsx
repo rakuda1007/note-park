@@ -91,12 +91,23 @@ export function NoteAuthProvider({ children }: { children: ReactNode }) {
     isFirebaseConfigured() ? initialConfigured : defaultNotConfigured,
   );
 
+  /** 同一 UID で onAuthStateChanged が再度飛んでも再同期しない（毎回 migrating に戻るのを防ぐ） */
+  const migrationCompletedUidRef = useRef<string | null>(null);
+  const migrationInFlightRef = useRef(false);
+
   const runMigrationRef = useRef<((user: User) => Promise<void>) | null>(null);
 
   const retryLocalMigration = useCallback(async () => {
     const u = getFirebaseAuth().currentUser;
     if (!u) return;
-    await runMigrationRef.current?.(u);
+    migrationCompletedUidRef.current = null;
+    migrationInFlightRef.current = false;
+    try {
+      await runMigrationRef.current?.(u);
+    } finally {
+      migrationInFlightRef.current = false;
+      migrationCompletedUidRef.current = u.uid;
+    }
   }, []);
 
   useEffect(() => {
@@ -177,8 +188,22 @@ export function NoteAuthProvider({ children }: { children: ReactNode }) {
           if (cancelled) return;
           window.clearTimeout(watchdogId);
           if (user) {
-            void run(user);
+            if (migrationCompletedUidRef.current === user.uid) {
+              return;
+            }
+            if (migrationInFlightRef.current) {
+              return;
+            }
+            migrationInFlightRef.current = true;
+            void run(user).finally(() => {
+              migrationInFlightRef.current = false;
+              if (!cancelled) {
+                migrationCompletedUidRef.current = user.uid;
+              }
+            });
           } else {
+            migrationCompletedUidRef.current = null;
+            migrationInFlightRef.current = false;
             setState({
               status: "ready",
               ownerId: getLocalOwnerId(),
