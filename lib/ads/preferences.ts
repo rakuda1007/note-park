@@ -1,5 +1,7 @@
 const ADS_HIDDEN_KEY = "note-park-ads-hidden";
 const ADS_SETTINGS_ENABLED_KEY = "note-park-ads-settings-enabled";
+const ADS_PREFS_VERSION_KEY = "note-park-ads-prefs-version";
+const ADS_PREFS_VERSION = "1";
 
 function isClient(): boolean {
   return typeof window !== "undefined";
@@ -14,8 +16,8 @@ export function isAdsForceHiddenByEnv(): boolean {
 }
 
 export function shouldDisableAdsInIosPwa(): boolean {
-  // 既定は無効化（iOS PWA で Heavy Ad になりやすいため）
-  return process.env.NEXT_PUBLIC_ADS_DISABLE_IOS_PWA !== "0";
+  // 既定は表示（必要な場合のみ環境変数で無効化）
+  return process.env.NEXT_PUBLIC_ADS_DISABLE_IOS_PWA === "1";
 }
 
 export function getAdSenseClientId(): string {
@@ -73,5 +75,41 @@ export function isAdsHiddenByUser(): boolean {
 export function setAdsHiddenByUser(hidden: boolean): void {
   if (!isClient()) return;
   window.localStorage.setItem(ADS_HIDDEN_KEY, hidden ? "1" : "0");
+}
+
+export function initAdsPreferences(): void {
+  if (!isClient()) return;
+  const current = window.localStorage.getItem(ADS_PREFS_VERSION_KEY);
+  if (current === ADS_PREFS_VERSION) return;
+
+  // 将来のキー変更に備えて初期化処理を一箇所に集約
+  const hiddenRaw = window.localStorage.getItem(ADS_HIDDEN_KEY);
+  if (hiddenRaw !== "1" && hiddenRaw !== "0") {
+    window.localStorage.setItem(ADS_HIDDEN_KEY, "0");
+  }
+  window.localStorage.setItem(ADS_PREFS_VERSION_KEY, ADS_PREFS_VERSION);
+}
+
+export type AdsDisplayStatus =
+  | "hidden_by_env"
+  | "hidden_by_ios_pwa"
+  | "hidden_by_user"
+  | "disabled_by_env"
+  | "visible";
+
+export function getAdsDisplayStatusLabel(status: AdsDisplayStatus): string {
+  switch (status) {
+    case "hidden_by_env":
+      return "環境設定で常に非表示";
+    case "hidden_by_ios_pwa":
+      return "iOSホーム画面アプリでは非表示";
+    case "hidden_by_user":
+      return "ユーザー設定で非表示";
+    case "disabled_by_env":
+      return "環境設定で広告機能オフ";
+    case "visible":
+    default:
+      return "表示対象";
+  }
 }
 

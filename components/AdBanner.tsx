@@ -3,9 +3,11 @@
 import Script from "next/script";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  getAdsDisplayStatusLabel,
   getAdSenseClientId,
   getAdSenseEditorSize,
   getAdSenseEditorSlot,
+  initAdsPreferences,
   isAdSenseConfigured,
   isAdsEnabledByEnv,
   isAdsForceHiddenByEnv,
@@ -42,6 +44,7 @@ export default function AdBanner() {
   const disableAdsInIosPwa = useMemo(() => shouldDisableAdsInIosPwa(), []);
 
   useEffect(() => {
+    initAdsPreferences();
     setHiddenByUser(isAdsHiddenByUser());
     setSettingsEnabled(isAdSettingsEnabledForCurrentUser());
     setIosPwaBlocked(disableAdsInIosPwa && isIosStandalonePwa());
@@ -50,6 +53,15 @@ export default function AdBanner() {
 
   const shouldShowAds = adsEnabled && !forceHidden && !hiddenByUser && !iosPwaBlocked;
   const canControlVisibility = settingsEnabled;
+  const displayStatus = !adsEnabled
+    ? "disabled_by_env"
+    : forceHidden
+      ? "hidden_by_env"
+      : iosPwaBlocked
+        ? "hidden_by_ios_pwa"
+        : hiddenByUser
+          ? "hidden_by_user"
+          : "visible";
 
   useEffect(() => {
     if (!shouldShowAds || !adSenseConfigured || !scriptReady) return;
@@ -96,18 +108,18 @@ export default function AdBanner() {
         adSenseConfigured ? (
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-2" aria-label="広告エリア">
             <div className="mx-auto w-fit overflow-hidden rounded">
-            <ins
-              ref={adInsRef}
-              className="adsbygoogle"
-              style={{
-                display: "inline-block",
-                width: `${adSize.width}px`,
-                height: `${adSize.height}px`,
-              }}
-              data-ad-client={adClient}
-              data-ad-slot={adSlot}
-              data-full-width-responsive="false"
-            />
+              <ins
+                ref={adInsRef}
+                className="adsbygoogle"
+                style={{
+                  display: "inline-block",
+                  width: `${adSize.width}px`,
+                  height: `${adSize.height}px`,
+                }}
+                data-ad-client={adClient}
+                data-ad-slot={adSlot}
+                data-full-width-responsive="false"
+              />
             </div>
           </div>
         ) : (
@@ -123,6 +135,8 @@ export default function AdBanner() {
 
       {canControlVisibility ? (
         <div className="rounded-md border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-400">
+          <p className="mb-1 text-zinc-300">広告設定</p>
+          <p className="text-zinc-500">現在の状態: {getAdsDisplayStatusLabel(displayStatus)}</p>
           <label className="inline-flex cursor-pointer items-center gap-2">
             <input
               type="checkbox"
@@ -143,7 +157,12 @@ export default function AdBanner() {
           {scriptFailed ? <p className="mt-1 text-zinc-500">広告スクリプトの読み込みに失敗しました。</p> : null}
           {noFillDetected ? <p className="mt-1 text-zinc-500">この環境では広告の配信がありませんでした。</p> : null}
         </div>
-      ) : null}
+      ) : (
+        <div className="rounded-md border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-500">
+          <p className="text-zinc-300">広告設定</p>
+          <p className="mt-1">現在の状態: {getAdsDisplayStatusLabel(displayStatus)}</p>
+        </div>
+      )}
     </section>
   );
 }
