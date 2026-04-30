@@ -161,10 +161,20 @@ export default function PortalPage() {
         </div>
       </section>
 
-      {/* POINT 02 */}
+      {/* POINT 02：モバイルは画像→テキスト、md+ は左テキスト・右画像 */}
       <section className="border-b border-slate-200/60 bg-slate-50/50 py-14 md:py-20" aria-labelledby="point-02">
         <div className="mx-auto grid max-w-6xl min-w-0 items-center gap-10 px-4 md:grid-cols-2 md:gap-14">
-          <div className="min-w-0 md:order-1">
+          <div className="relative aspect-[640/478] w-full overflow-hidden rounded-2xl bg-slate-100 shadow-lg ring-1 ring-slate-900/5 md:col-start-2 md:row-start-1">
+            <Image
+              src="/memo2_s.jpg"
+              alt="メモがすぐ手元にあるイメージ"
+              width={640}
+              height={478}
+              className="h-full w-full object-cover"
+              sizes="(max-width: 768px) 100vw, 50vw"
+            />
+          </div>
+          <div className="min-w-0 md:col-start-1 md:row-start-1">
             <p className="text-sm font-semibold text-sky-700">POINT 02</p>
             <h2 id="point-02" className="mt-1 text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
               閉じるだけで、自動保存
@@ -174,16 +184,6 @@ export default function PortalPage() {
               書いた内容は、あなたのブラウザにリアルタイムで自動保存されます。不意にブラウザを閉じても、ネットが切れても大丈夫。次に訪れたとき、続きからすぐに再開できます。
             </p>
             <BulletList items={["ブラウザのローカルストレージを活用", "オフライン環境でも執筆可能"]} />
-          </div>
-          <div className="relative aspect-[640/478] w-full overflow-hidden rounded-2xl bg-slate-100 shadow-lg ring-1 ring-slate-900/5 md:order-2">
-            <Image
-              src="/memo2_s.jpg"
-              alt="メモがすぐ手元にあるイメージ"
-              width={640}
-              height={478}
-              className="h-full w-full object-cover"
-              sizes="(max-width: 768px) 100vw, 50vw"
-            />
           </div>
         </div>
       </section>
