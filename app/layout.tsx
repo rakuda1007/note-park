@@ -7,6 +7,8 @@ import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import "./globals.css";
 
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim() ?? "";
+/** 管理者PIN検証用（平文ではなく SHA-256 16進）。クライアントは meta からも読む。 */
+const ADMIN_PIN_SHA256_PUBLIC = (process.env.NEXT_PUBLIC_ADMIN_PIN_SHA256 ?? "").trim().toLowerCase();
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,6 +31,10 @@ export const metadata: Metadata = {
   },
   icons: {
     apple: [{ url: "/icons/NotePark.png", type: "image/png" }],
+  },
+  /** 管理者PIN検証用ハッシュ（平文PINは入れない）。クライアントは meta から読む。 */
+  other: {
+    "note-park-admin-pin-sha256": ADMIN_PIN_SHA256_PUBLIC,
   },
 };
 

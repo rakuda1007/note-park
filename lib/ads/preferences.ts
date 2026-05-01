@@ -68,8 +68,23 @@ export function setAdminModeEnabled(enabled: boolean): void {
   window.localStorage.setItem(ADMIN_MODE_KEY, enabled ? "1" : "0");
 }
 
+function readAdminPinSha256FromDom(): string | null {
+  if (typeof document === "undefined") return null;
+  const el = document.querySelector('meta[name="note-park-admin-pin-sha256"]');
+  const raw = el?.getAttribute("content");
+  if (raw == null) return null;
+  const v = raw.replace(/^\uFEFF/, "").trim().toLowerCase();
+  return v;
+}
+
+/**
+ * ビルド時に layout の meta に埋め込んだ値を優先する。
+ * 一部チャンクで NEXT_PUBLIC_* の置換が空になる場合の回避。
+ */
 function getAdminPinSha256(): string {
-  return (process.env.NEXT_PUBLIC_ADMIN_PIN_SHA256 ?? "").trim().toLowerCase();
+  const fromDom = readAdminPinSha256FromDom();
+  if (fromDom !== null && fromDom.length > 0) return fromDom;
+  return (process.env.NEXT_PUBLIC_ADMIN_PIN_SHA256 ?? "").replace(/^\uFEFF/, "").trim().toLowerCase();
 }
 
 async function sha256Hex(text: string): Promise<string> {
