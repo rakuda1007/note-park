@@ -10,7 +10,9 @@ service cloud.firestore {
     }
 
     match /usage_daily/{dayId} {
-      allow read: if false;
+      // トランザクションで当日ドキュメントを読むため get のみ許可（一覧は不可）
+      allow get: if request.auth != null && isUsageDay(dayId);
+      allow list: if false;
       allow create: if request.auth != null
         && isUsageDay(dayId)
         && request.resource.data.keys().hasOnly(['sessions', 'updatedAt'])
@@ -25,7 +27,8 @@ service cloud.firestore {
     }
 
     match /usage_presence/{uid} {
-      allow read: if false;
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list: if false;
       allow create: if request.auth != null
         && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['lastDay', 'platform', 'updatedAt'])

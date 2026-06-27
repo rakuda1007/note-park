@@ -70,9 +70,7 @@ export function sendDailyHeartbeat(): Promise<void> {
       markSentToday();
     })
     .catch((err: unknown) => {
-      if (process.env.NODE_ENV === "development") {
-        console.warn("[note-park] heartbeat failed", err);
-      }
+      console.warn("[note-park] heartbeat failed", err);
     })
     .finally(() => {
       heartbeatInFlight = null;
