@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "firebase:deploy:rules": "firebase deploy --only firestore:rules,storage"
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules",
+    "firebase:deploy:storage-rules": "firebase deploy --only storage"
   },
   "dependencies": {
     "firebase": "^12.12.0",

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
+import HeartbeatSender from "@/components/HeartbeatSender";
 import PwaResumeHandler from "@/components/PwaResumeHandler";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { NoteAuthProvider } from "@/lib/contexts/NoteAuthContext";
@@ -74,6 +75,7 @@ gtag("config", ${JSON.stringify(GA_MEASUREMENT_ID)});
           </>
         ) : null}
         <ServiceWorkerRegister />
+        <HeartbeatSender />
         <PwaResumeHandler />
         <AppErrorBoundary>
           <NoteAuthProvider>{children}</NoteAuthProvider>
