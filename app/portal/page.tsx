@@ -44,6 +44,16 @@ const PARK_SIBLINGS = [
     ringClass: "ring-rose-500/15 hover:ring-rose-400/35",
     glowClass: "from-rose-500/[0.07] to-transparent",
   },
+  {
+    name: "スタディパーク",
+    category: "学習クイズ",
+    description:
+      "覚えたい問題を登録してその場でクイズに。苦手復習で定着を促し、招待で家族や教室とも教材を共有できます。",
+    href: "https://study.tennis-park-community.com/portal",
+    logoSrc: "/study-park-logo.png",
+    ringClass: "ring-indigo-500/15 hover:ring-indigo-400/35",
+    glowClass: "from-indigo-500/[0.07] to-transparent",
+  },
 ] as const;
 
 const checkIcon = (
@@ -279,7 +289,7 @@ export default function PortalPage() {
             </a>
           </div>
 
-          <ul className="mx-auto mt-12 grid max-w-5xl grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+          <ul className="mx-auto mt-12 grid max-w-5xl grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 lg:gap-6">
             {PARK_SIBLINGS.map((app) => (
               <li key={app.name} className="min-w-0">
                 <a
@@ -316,7 +326,7 @@ export default function PortalPage() {
                   </div>
                   <p className="relative mt-4 text-sm leading-relaxed text-slate-600">{app.description}</p>
                   <span className="relative mt-5 inline-flex items-center gap-1 text-sm font-semibold text-sky-700 transition group-hover:gap-2">
-                    アプリを開く
+                    詳しく見る
                     <span aria-hidden>→</span>
                   </span>
                 </a>
