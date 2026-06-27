@@ -8,7 +8,7 @@ import AuthToolbar from "@/components/AuthToolbar";
 import LocalMigrationErrorBanner from "@/components/LocalMigrationErrorBanner";
 import { trackEvent } from "@/lib/analytics/gtag";
 import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
-import { deleteNote, listNotes, updateNote } from "@/lib/note/repository";
+import { deleteNote, listNotes, reorderNotes, updateNote } from "@/lib/note/repository";
 import type { NoteLine, NoteListItem } from "@/lib/types/note";
 
 type LineFilter = "all" | "checked" | "unchecked";
@@ -39,6 +39,7 @@ export default function NotesListPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [listSearch, setListSearch] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const ownerId = auth.status === "ready" && auth.ownerId ? auth.ownerId : null;
 
@@ -185,6 +186,36 @@ export default function NotesListPage() {
     [ownerId, loadList],
   );
 
+  const canReorder = !listSearch.trim();
+
+  const handleMoveNote = useCallback(
+    async (noteId: string, direction: "up" | "down") => {
+      if (!ownerId || !canReorder) return;
+      const idx = items.findIndex((n) => n.id === noteId);
+      if (idx < 0) return;
+      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= items.length) return;
+
+      const next = [...items];
+      [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+      const ordered = next.map((n, index) => ({ ...n, sortOrder: index }));
+      setItems(ordered);
+      setReorderingId(noteId);
+      try {
+        await reorderNotes(
+          ownerId,
+          ordered.map((n) => n.id),
+        );
+      } catch {
+        void loadList();
+        window.alert("並び順の保存に失敗しました。もう一度お試しください。");
+      } finally {
+        setReorderingId(null);
+      }
+    },
+    [canReorder, items, loadList, ownerId],
+  );
+
   const handleDelete = useCallback(
     async (noteId: string) => {
       if (!ownerId) return;
@@ -294,6 +325,9 @@ export default function NotesListPage() {
                   ))}
                 </div>
               </div>
+              {listSearch.trim() ? (
+                <p className="text-xs text-zinc-500">検索中は並び替えできません。</p>
+              ) : null}
               {listSearch.trim() || lineFilter !== DEFAULT_LINE_FILTER ? (
                 <p className="text-xs text-zinc-500">
                   {filteredItems.length} 件表示
@@ -317,6 +351,9 @@ export default function NotesListPage() {
             ) : (
               <ul className="divide-y divide-teal-900/40 overflow-x-hidden rounded-xl border border-teal-900/40 bg-teal-950/20">
                 {filteredItems.map((n) => {
+                  const itemIndex = items.findIndex((it) => it.id === n.id);
+                  const canMoveUp = canReorder && itemIndex > 0;
+                  const canMoveDown = canReorder && itemIndex >= 0 && itemIndex < items.length - 1;
                   const titleText = (n.title ?? "").trim();
                   const previewText = (n.preview ?? "").trim();
                   const hasBody = previewText.length > 0;
@@ -384,6 +421,48 @@ export default function NotesListPage() {
                           })}
                         </div>
                       </Link>
+                      {canReorder ? (
+                        <div className="flex w-9 shrink-0 flex-col items-stretch self-stretch border-l border-teal-900/40 sm:w-10">
+                          <button
+                            type="button"
+                            disabled={
+                              !canMoveUp ||
+                              reorderingId === n.id ||
+                              deletingId === n.id ||
+                              togglingId === n.id
+                            }
+                            className="flex flex-1 items-center justify-center text-sm text-teal-200 hover:bg-teal-900/40 disabled:cursor-not-allowed disabled:opacity-30"
+                            aria-label={`「${labelForA11y}」を上へ`}
+                            title="上へ"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              void handleMoveNote(n.id, "up");
+                            }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            disabled={
+                              !canMoveDown ||
+                              reorderingId === n.id ||
+                              deletingId === n.id ||
+                              togglingId === n.id
+                            }
+                            className="flex flex-1 items-center justify-center border-t border-teal-900/40 text-sm text-teal-200 hover:bg-teal-900/40 disabled:cursor-not-allowed disabled:opacity-30"
+                            aria-label={`「${labelForA11y}」を下へ`}
+                            title="下へ"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              void handleMoveNote(n.id, "down");
+                            }}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      ) : null}
                       <div className="flex w-[4.5rem] shrink-0 items-stretch self-stretch border-l border-teal-900/40 sm:min-w-[5rem]">
                         <button
                           type="button"

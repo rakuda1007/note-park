@@ -31,6 +31,7 @@ type StoredNote = NotePayload & {
   ownerId: string;
   createdAt: number;
   updatedAt: number;
+  sortOrder?: number;
 };
 
 type MetaRow = {
@@ -127,20 +128,43 @@ function lineCheckFlags(lines: NoteLine[]): {
 /**
  * 1件分の一覧用オブジェクトへ変換。想定外データで例外が出ても一覧全体を落とさず null。
  */
+function readSortOrder(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return undefined;
+}
+
+function compareNoteOrdering(
+  a: { sortOrder?: number; updatedAt: number },
+  b: { sortOrder?: number; updatedAt: number },
+): number {
+  const ao = a.sortOrder;
+  const bo = b.sortOrder;
+  if (ao != null && bo != null && ao !== bo) return ao - bo;
+  if (ao != null && bo == null) return -1;
+  if (ao == null && bo != null) return 1;
+  return b.updatedAt - a.updatedAt;
+}
+
+function compareNoteListItems(a: NoteListItem, b: NoteListItem): number {
+  return compareNoteOrdering(a, b);
+}
+
 function mapToNoteListItem(
   id: string,
-  data: { title?: unknown; lines?: unknown; updatedAt?: unknown },
+  data: { title?: unknown; lines?: unknown; updatedAt?: unknown; sortOrder?: unknown },
 ): NoteListItem | null {
   try {
     const lines = normalizeLines(data.lines);
     const title = typeof data.title === "string" ? data.title : "";
     const flags = lineCheckFlags(lines);
     const lineCount = lines.length;
+    const sortOrder = readSortOrder(data.sortOrder);
     return {
       id,
       title,
       preview: previewFromLines(lines),
       updatedAt: timestampToMs(data.updatedAt),
+      ...(sortOrder != null ? { sortOrder } : {}),
       lineCount,
       ...(lineCount === 1 ? { onlyLine: lines[0] } : {}),
       ...flags,
@@ -158,6 +182,7 @@ function sanitizeStoredNote(input: unknown): StoredNote | null {
   const row = input as Record<string, unknown>;
   if (typeof row.id !== "string" || row.id.length === 0) return null;
   const ownerId = typeof row.ownerId === "string" ? row.ownerId : LOCAL_OWNER;
+  const sortOrder = readSortOrder(row.sortOrder);
   return {
     id: row.id,
     ownerId,
@@ -165,6 +190,7 @@ function sanitizeStoredNote(input: unknown): StoredNote | null {
     lines: normalizeLines(row.lines),
     createdAt: timestampToMs(row.createdAt),
     updatedAt: timestampToMs(row.updatedAt),
+    ...(sortOrder != null ? { sortOrder } : {}),
   };
 }
 
@@ -261,6 +287,7 @@ export async function migrateFirestoreNotesToIndexedDB(
         lines: d.data().lines,
         createdAt: d.data().createdAt?.toMillis?.() ?? Date.now(),
         updatedAt: d.data().updatedAt?.toMillis?.() ?? Date.now(),
+        sortOrder: d.data().sortOrder,
       });
       if (!row) continue;
 
@@ -329,7 +356,7 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
     return snap.docs
       .map((d) => mapToNoteListItem(d.id, d.data()))
       .filter((x): x is NoteListItem => x !== null)
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+      .sort(compareNoteListItems);
   }
 
   const db = await openDb();
@@ -340,12 +367,13 @@ export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
   await idbTxDone(tx);
   return notes
     .filter((n) => n.ownerId === ownerId)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .sort(compareNoteOrdering)
     .map((n) =>
       mapToNoteListItem(n.id, {
         title: n.title,
         lines: n.lines,
         updatedAt: n.updatedAt,
+        sortOrder: n.sortOrder,
       }),
     )
     .filter((x): x is NoteListItem => x !== null);
@@ -357,6 +385,8 @@ export async function createNote(ownerId: string, payload: NotePayload): Promise
   }
   await ensureLocalStorageMigration();
 
+  const sortOrder = await nextSortOrderForNewNote(ownerId);
+
   if (isCloudOwnerId(ownerId)) {
     const ref = await addDoc(collection(getFirestoreDb(), "notes"), {
       ownerId,
@@ -364,6 +394,7 @@ export async function createNote(ownerId: string, payload: NotePayload): Promise
       lines: payload.lines,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+      ...(sortOrder != null ? { sortOrder } : {}),
     });
     return ref.id;
   }
@@ -379,9 +410,49 @@ export async function createNote(ownerId: string, payload: NotePayload): Promise
     lines: payload.lines,
     createdAt: now,
     updatedAt: now,
+    ...(sortOrder != null ? { sortOrder } : {}),
   } satisfies StoredNote);
   await idbTxDone(tx);
   return id;
+}
+
+async function nextSortOrderForNewNote(ownerId: string): Promise<number | undefined> {
+  const notes = await listNotes(ownerId);
+  if (notes.length === 0) return undefined;
+  const hasCustomOrder = notes.some((n) => n.sortOrder != null);
+  if (!hasCustomOrder) return undefined;
+  const minOrder = Math.min(...notes.map((n) => n.sortOrder ?? 0));
+  return minOrder - 1;
+}
+
+/** 一覧の並び順を保存する（上から順に id を渡す） */
+export async function reorderNotes(ownerId: string, orderedIds: string[]): Promise<void> {
+  if (typeof window === "undefined") return;
+  await ensureLocalStorageMigration();
+
+  if (isCloudOwnerId(ownerId)) {
+    const firestore = getFirestoreDb();
+    const batch = writeBatch(firestore);
+    orderedIds.forEach((id, index) => {
+      batch.update(doc(firestore, "notes", id), { sortOrder: index });
+    });
+    await batch.commit();
+    return;
+  }
+
+  const db = await openDb();
+  const tx = db.transaction(NOTES_STORE, "readwrite");
+  const store = tx.objectStore(NOTES_STORE);
+  for (let index = 0; index < orderedIds.length; index++) {
+    const id = orderedIds[index];
+    const prev = sanitizeStoredNote(await idbRequest(store.get(id)));
+    if (!prev || prev.ownerId !== ownerId) continue;
+    store.put({
+      ...prev,
+      sortOrder: index,
+    } satisfies StoredNote);
+  }
+  await idbTxDone(tx);
 }
 
 export async function updateNote(
@@ -517,6 +588,7 @@ async function runMigrateLocalNotesToFirebaseBody(uid: string): Promise<{ migrat
         lines: normalizeLines(n.lines),
         createdAt: Timestamp.fromMillis(created),
         updatedAt: Timestamp.fromMillis(updated),
+        ...(n.sortOrder != null ? { sortOrder: n.sortOrder } : {}),
       });
     }
     await batch.commit();

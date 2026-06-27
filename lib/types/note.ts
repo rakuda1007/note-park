@@ -14,6 +14,8 @@ export type NoteListItem = {
   /** 本文の冒頭（行をつないだ抜粋・検索用。タイトルとは別） */
   preview: string;
   updatedAt: number;
+  /** 一覧の手動並び順（小さいほど上）。未設定のときは更新日時順 */
+  sortOrder?: number;
   /** 未チェックの行が1行でもある */
   hasUncheckedLines: boolean;
   /** チェック済みの行が1行でもある */
