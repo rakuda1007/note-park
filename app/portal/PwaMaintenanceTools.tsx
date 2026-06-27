@@ -6,17 +6,21 @@ import {
   checkForAppUpdate,
   fetchAppBuildInfo,
   forceAppUpdate,
+  isStandalonePwa,
   setKnownAppBuild,
 } from "@/lib/pwa/app-update";
 
 export default function PwaMaintenanceTools() {
+  const [visible, setVisible] = useState(false);
   const [noteCount, setNoteCount] = useState<number | null>(null);
   const [busy, setBusy] = useState<"backup" | "update" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [remoteBuild, setRemoteBuild] = useState<string | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
   useEffect(() => {
+    if (!isStandalonePwa()) return;
+    setVisible(true);
+
     void exportAllLocalNotesBackup()
       .then((json) => {
         const parsed = JSON.parse(json) as { count?: number };
@@ -25,7 +29,6 @@ export default function PwaMaintenanceTools() {
       .catch(() => setNoteCount(null));
 
     void checkForAppUpdate().then((result) => {
-      setRemoteBuild(result.remote?.version ?? null);
       setUpdateAvailable(result.updateAvailable);
     });
   }, []);
@@ -44,9 +47,9 @@ export default function PwaMaintenanceTools() {
       a.click();
       URL.revokeObjectURL(url);
       const parsed = JSON.parse(json) as { count?: number };
-      setMessage(`${parsed.count ?? 0} 件のメモをバックアップしました。`);
+      setMessage(`${parsed.count ?? 0} 件のメモをファイルに保存しました。`);
     } catch {
-      setMessage("バックアップに失敗しました。もう一度お試しください。");
+      setMessage("保存に失敗しました。もう一度お試しください。");
     } finally {
       setBusy(null);
     }
@@ -60,30 +63,25 @@ export default function PwaMaintenanceTools() {
       if (remote?.version) setKnownAppBuild(remote.version);
       await forceAppUpdate();
     } catch {
-      setMessage("更新の開始に失敗しました。アプリを一度終了して開き直してください。");
+      setMessage("更新を開始できませんでした。アプリを一度終了して開き直してください。");
       setBusy(null);
     }
   }, []);
 
+  if (!visible) return null;
+
   return (
-    <div className="rounded-2xl border border-amber-200/80 bg-amber-50/90 p-5 shadow-sm ring-1 ring-amber-500/10">
-      <p className="text-xs font-semibold uppercase tracking-wide text-amber-800/90">
-        ホーム画面アプリのメンテナンス
-      </p>
-      <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">
-        メモを残したまま最新版へ更新
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm ring-1 ring-slate-900/5">
+      <h3 className="text-lg font-semibold tracking-tight text-slate-900">
+        アプリを最新の状態にする
       </h3>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
-        ホーム画面アプリでは「新しいバージョンがあります」が出ないことがあります。削除せずに更新するには、
-        先にバックアップを取ってから「最新版を読み込む」を押してください。
+        ホーム画面から開いている場合、更新のお知らせが届かないことがあります。必要なときは、メモをファイルに保存してから「最新版を読み込む」を押してください。
         {noteCount !== null ? (
           <span className="mt-1 block text-slate-500">この端末のメモ: {noteCount} 件</span>
         ) : null}
-        {remoteBuild ? (
-          <span className="mt-1 block text-xs text-slate-500">サーバー版: {remoteBuild}</span>
-        ) : null}
         {updateAvailable ? (
-          <span className="mt-2 block font-medium text-amber-800">新しい版が利用可能です。</span>
+          <span className="mt-2 block font-medium text-sky-700">新しい版があります。</span>
         ) : null}
       </p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -91,22 +89,22 @@ export default function PwaMaintenanceTools() {
           type="button"
           disabled={busy !== null}
           onClick={() => void onBackup()}
-          className="rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-950 hover:bg-amber-50 disabled:opacity-50"
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
         >
-          {busy === "backup" ? "書き出し中…" : "メモをバックアップ（JSON）"}
+          {busy === "backup" ? "保存中…" : "メモをファイルに保存"}
         </button>
         <button
           type="button"
           disabled={busy !== null}
           onClick={() => void onForceUpdate()}
-          className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-500 disabled:opacity-50"
+          className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-50"
         >
-          {busy === "update" ? "更新中…" : "最新版を読み込む"}
+          {busy === "update" ? "読み込み中…" : "最新版を読み込む"}
         </button>
       </div>
       {message ? <p className="mt-3 text-sm text-slate-700">{message}</p> : null}
       <p className="mt-3 text-xs leading-relaxed text-slate-500">
-        バックアップはこの端末のブラウザ内メモのみです。PCでクラウド同期済みのメモは、ログイン後に別途同期されます。
+        保存したファイルは、この端末のメモの控えです。
       </p>
     </div>
   );

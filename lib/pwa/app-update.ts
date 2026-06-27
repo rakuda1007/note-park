@@ -1,5 +1,14 @@
 const KNOWN_BUILD_KEY = "note-park-known-build";
 
+/** ホーム画面に追加した PWA として起動しているか */
+export function isStandalonePwa(): boolean {
+  if (typeof window === "undefined") return false;
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  return (
+    window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true
+  );
+}
+
 export type AppBuildInfo = {
   version: string;
   updatedAt: string;
