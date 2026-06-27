@@ -1,7 +1,7 @@
 "use client";
 
 import { FirebaseError } from "firebase/app";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import {
   createContext,
   useCallback,
@@ -11,6 +11,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { isAdminModeEnabled } from "@/lib/ads/preferences";
+import { ADMIN_MODE_CHANGED_EVENT } from "@/lib/admin/cloud-sync";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase/client";
 import { getLocalOwnerId, migrateLocalNotesToFirebase } from "@/lib/note/repository";
 
@@ -43,7 +45,7 @@ export type NoteAuthState =
       isCloud: boolean;
       userEmail: string | null;
       message: null;
-      /** 未ログイン時 localStorage → Firestore 移行に失敗した場合（ログインは継続。再同期可） */
+      /** 未ログイン時 IndexedDB → Firestore 移行に失敗した場合（ログインは継続。再同期可） */
       migrationError: string | null;
     }
   | { status: "error"; ownerId: null; isCloud: boolean; userEmail: null; message: string };
@@ -63,22 +65,20 @@ function formatMigrationError(err: unknown): string {
   return "ローカルメモの同期に失敗しました。";
 }
 
-const defaultNotConfigured: NoteAuthState = {
-  status: "ready",
-  ownerId: getLocalOwnerId(),
-  isCloud: false,
-  userEmail: null,
-  message: null,
-  migrationError: null,
-};
+function localReadyState(): NoteAuthState {
+  return {
+    status: "ready",
+    ownerId: getLocalOwnerId(),
+    isCloud: false,
+    userEmail: null,
+    message: null,
+    migrationError: null,
+  };
+}
 
-const initialConfigured: NoteAuthState = {
-  status: "loading",
-  ownerId: null,
-  isCloud: true,
-  userEmail: null,
-  message: null,
-};
+function shouldUseCloudAuth(): boolean {
+  return isFirebaseConfigured() && isAdminModeEnabled();
+}
 
 const NoteAuthStateContext = createContext<NoteAuthState | null>(null);
 
@@ -88,7 +88,15 @@ const NoteAuthApiContext = createContext<{
 
 export function NoteAuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<NoteAuthState>(() =>
-    isFirebaseConfigured() ? initialConfigured : defaultNotConfigured,
+    shouldUseCloudAuth()
+      ? {
+          status: "loading",
+          ownerId: null,
+          isCloud: true,
+          userEmail: null,
+          message: null,
+        }
+      : localReadyState(),
   );
 
   /** 同一 UID で onAuthStateChanged が再度飛んでも再同期しない（毎回 migrating に戻るのを防ぐ） */
@@ -111,142 +119,197 @@ export function NoteAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!isFirebaseConfigured()) {
-      setState({
-        status: "ready",
-        ownerId: getLocalOwnerId(),
-        isCloud: false,
-        userEmail: null,
-        message: null,
-        migrationError: null,
-      });
-      return;
-    }
-
     let cancelled = false;
     let unsub: (() => void) | null = null;
+    let watchdogId: number | null = null;
 
-    const watchdogId = window.setTimeout(() => {
+    const resetToLocal = () => {
+      migrationCompletedUidRef.current = null;
+      migrationInFlightRef.current = false;
+      setState(localReadyState());
+    };
+
+    const startCloudAuth = () => {
       if (cancelled) return;
-      setState((prev) => {
-        if (prev.status !== "loading") return prev;
-        return {
+
+      watchdogId = window.setTimeout(() => {
+        if (cancelled) return;
+        setState((prev) => {
+          if (prev.status !== "loading") return prev;
+          return {
+            status: "error",
+            ownerId: null,
+            isCloud: true,
+            userEmail: null,
+            message:
+              "認証の準備が制限時間内に終わりませんでした。ネットワークと Firebase 設定を確認のうえ、ページを再読み込みしてください。",
+          };
+        });
+      }, AUTH_INIT_WATCHDOG_MS);
+
+      const run = async (user: User) => {
+        setState({
+          status: "migrating",
+          ownerId: null,
+          isCloud: true,
+          userEmail: null,
+          message: null,
+        });
+        try {
+          await withTimeout(
+            user.getIdToken(true),
+            AUTH_TOKEN_TIMEOUT_MS,
+            `ログイン確認が ${AUTH_TOKEN_TIMEOUT_MS / 1000} 秒以内に完了しませんでした。通信を確認し、ページを再読み込みしてください。`,
+          );
+          await migrateLocalNotesToFirebase(user.uid);
+          if (cancelled) return;
+          setState({
+            status: "ready",
+            ownerId: user.uid,
+            isCloud: true,
+            userEmail: user.email ?? null,
+            message: null,
+            migrationError: null,
+          });
+        } catch (err) {
+          if (cancelled) return;
+          setState({
+            status: "ready",
+            ownerId: user.uid,
+            isCloud: true,
+            userEmail: user.email ?? null,
+            message: null,
+            migrationError: formatMigrationError(err),
+          });
+        }
+      };
+
+      runMigrationRef.current = run;
+
+      try {
+        const auth = getFirebaseAuth();
+        unsub = onAuthStateChanged(
+          auth,
+          (user: User | null) => {
+            if (cancelled) return;
+            if (watchdogId !== null) {
+              window.clearTimeout(watchdogId);
+              watchdogId = null;
+            }
+            if (!shouldUseCloudAuth()) {
+              if (user) void signOut(auth);
+              resetToLocal();
+              return;
+            }
+            if (user) {
+              if (migrationCompletedUidRef.current === user.uid) {
+                setState((prev) => {
+                  if (prev.status === "ready" && prev.ownerId === user.uid) return prev;
+                  return {
+                    status: "ready",
+                    ownerId: user.uid,
+                    isCloud: true,
+                    userEmail: user.email ?? null,
+                    message: null,
+                    migrationError: null,
+                  };
+                });
+                return;
+              }
+              if (migrationInFlightRef.current) {
+                return;
+              }
+              migrationInFlightRef.current = true;
+              void run(user).finally(() => {
+                migrationInFlightRef.current = false;
+                if (!cancelled) {
+                  migrationCompletedUidRef.current = user.uid;
+                }
+              });
+            } else {
+              resetToLocal();
+            }
+          },
+          (err) => {
+            if (!cancelled) {
+              if (watchdogId !== null) {
+                window.clearTimeout(watchdogId);
+                watchdogId = null;
+              }
+              setState({
+                status: "error",
+                ownerId: null,
+                isCloud: true,
+                userEmail: null,
+                message: err.message ?? "認証に失敗しました。",
+              });
+            }
+          },
+        );
+      } catch (err: unknown) {
+        if (watchdogId !== null) {
+          window.clearTimeout(watchdogId);
+          watchdogId = null;
+        }
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Firebase の初期化に失敗しました。環境変数（NEXT_PUBLIC_FIREBASE_*）を確認してください。";
+        setState({
           status: "error",
           ownerId: null,
           isCloud: true,
           userEmail: null,
-          message:
-            "認証の準備が制限時間内に終わりませんでした。ネットワークと Firebase 設定を確認のうえ、ページを再読み込みしてください。",
-        };
-      });
-    }, AUTH_INIT_WATCHDOG_MS);
+          message,
+        });
+      }
+    };
 
-    const run = async (user: User) => {
+    const syncAuthMode = () => {
+      if (cancelled) return;
+      unsub?.();
+      unsub = null;
+      if (watchdogId !== null) {
+        window.clearTimeout(watchdogId);
+        watchdogId = null;
+      }
+      runMigrationRef.current = null;
+
+      if (!shouldUseCloudAuth()) {
+        const auth = isFirebaseConfigured() ? getFirebaseAuth() : null;
+        if (auth?.currentUser) {
+          void signOut(auth);
+        }
+        resetToLocal();
+        return;
+      }
+
       setState({
-        status: "migrating",
+        status: "loading",
         ownerId: null,
         isCloud: true,
         userEmail: null,
         message: null,
       });
-      try {
-        await withTimeout(
-          user.getIdToken(true),
-          AUTH_TOKEN_TIMEOUT_MS,
-          `ログイン確認が ${AUTH_TOKEN_TIMEOUT_MS / 1000} 秒以内に完了しませんでした。通信を確認し、ページを再読み込みしてください。`,
-        );
-        await migrateLocalNotesToFirebase(user.uid);
-        if (cancelled) return;
-        setState({
-          status: "ready",
-          ownerId: user.uid,
-          isCloud: true,
-          userEmail: user.email ?? null,
-          message: null,
-          migrationError: null,
-        });
-      } catch (err) {
-        if (cancelled) return;
-        setState({
-          status: "ready",
-          ownerId: user.uid,
-          isCloud: true,
-          userEmail: user.email ?? null,
-          message: null,
-          migrationError: formatMigrationError(err),
-        });
-      }
+      startCloudAuth();
     };
 
-    runMigrationRef.current = run;
+    syncAuthMode();
 
-    try {
-      const auth = getFirebaseAuth();
-      unsub = onAuthStateChanged(
-        auth,
-        (user: User | null) => {
-          if (cancelled) return;
-          window.clearTimeout(watchdogId);
-          if (user) {
-            if (migrationCompletedUidRef.current === user.uid) {
-              return;
-            }
-            if (migrationInFlightRef.current) {
-              return;
-            }
-            migrationInFlightRef.current = true;
-            void run(user).finally(() => {
-              migrationInFlightRef.current = false;
-              if (!cancelled) {
-                migrationCompletedUidRef.current = user.uid;
-              }
-            });
-          } else {
-            migrationCompletedUidRef.current = null;
-            migrationInFlightRef.current = false;
-            setState({
-              status: "ready",
-              ownerId: getLocalOwnerId(),
-              isCloud: false,
-              userEmail: null,
-              message: null,
-              migrationError: null,
-            });
-          }
-        },
-        (err) => {
-          if (!cancelled) {
-            window.clearTimeout(watchdogId);
-            setState({
-              status: "error",
-              ownerId: null,
-              isCloud: true,
-              userEmail: null,
-              message: err.message ?? "認証に失敗しました。",
-            });
-          }
-        },
-      );
-    } catch (err: unknown) {
-      window.clearTimeout(watchdogId);
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Firebase の初期化に失敗しました。環境変数（NEXT_PUBLIC_FIREBASE_*）を確認してください。";
-      setState({
-        status: "error",
-        ownerId: null,
-        isCloud: true,
-        userEmail: null,
-        message,
-      });
-    }
+    const onAdminModeChanged = () => syncAuthMode();
+    window.addEventListener(ADMIN_MODE_CHANGED_EVENT, onAdminModeChanged);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "note-park-admin-mode-enabled") syncAuthMode();
+    };
+    window.addEventListener("storage", onStorage);
 
     return () => {
       cancelled = true;
-      window.clearTimeout(watchdogId);
+      if (watchdogId !== null) window.clearTimeout(watchdogId);
       runMigrationRef.current = null;
       unsub?.();
+      window.removeEventListener(ADMIN_MODE_CHANGED_EVENT, onAdminModeChanged);
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 

@@ -1,5 +1,19 @@
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
+  where,
+  writeBatch,
+} from "firebase/firestore";
 import type { NoteLine, NoteListItem, NotePayload } from "@/lib/types/note";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { isAdminCloudSyncAvailable } from "@/lib/admin/cloud-sync";
 import { getFirestoreDb, isFirebaseConfigured } from "@/lib/firebase/client";
 
 const LOCAL_OWNER = "local";
@@ -65,6 +79,7 @@ function openDb(): Promise<IDBDatabase> {
 }
 
 function timestampToMs(value: unknown): number {
+  if (value instanceof Timestamp) return value.toMillis();
   if (typeof value === "number" && Number.isFinite(value)) return value;
   return Date.now();
 }
@@ -272,6 +287,19 @@ export async function fetchNote(
   if (typeof window === "undefined") return null;
   await ensureLocalStorageMigration();
   try {
+    if (isCloudOwnerId(ownerId)) {
+      const snap = await getDoc(doc(getFirestoreDb(), "notes", noteId));
+      if (!snap.exists()) return null;
+      const data = snap.data();
+      if (data.ownerId !== ownerId) return null;
+      return {
+        id: snap.id,
+        title: typeof data.title === "string" ? data.title : "",
+        lines: normalizeLines(data.lines),
+        updatedAt: timestampToMs(data.updatedAt),
+      };
+    }
+
     const db = await openDb();
     const tx = db.transaction(NOTES_STORE, "readonly");
     const note = sanitizeStoredNote(await idbRequest(tx.objectStore(NOTES_STORE).get(noteId)));
@@ -294,6 +322,16 @@ export async function fetchNote(
 export async function listNotes(ownerId: string): Promise<NoteListItem[]> {
   if (typeof window === "undefined") return [];
   await ensureLocalStorageMigration();
+
+  if (isCloudOwnerId(ownerId)) {
+    const q = query(collection(getFirestoreDb(), "notes"), where("ownerId", "==", ownerId));
+    const snap = await getDocs(q);
+    return snap.docs
+      .map((d) => mapToNoteListItem(d.id, d.data()))
+      .filter((x): x is NoteListItem => x !== null)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
   const db = await openDb();
   const tx = db.transaction(NOTES_STORE, "readonly");
   const notes = (await idbRequest(tx.objectStore(NOTES_STORE).getAll()))
@@ -318,6 +356,18 @@ export async function createNote(ownerId: string, payload: NotePayload): Promise
     throw new Error("createNote can only run on client side");
   }
   await ensureLocalStorageMigration();
+
+  if (isCloudOwnerId(ownerId)) {
+    const ref = await addDoc(collection(getFirestoreDb(), "notes"), {
+      ownerId,
+      title: payload.title,
+      lines: payload.lines,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    return ref.id;
+  }
+
   const now = Date.now();
   const id = crypto.randomUUID();
   const db = await openDb();
@@ -341,6 +391,16 @@ export async function updateNote(
 ): Promise<void> {
   if (typeof window === "undefined") return;
   await ensureLocalStorageMigration();
+
+  if (isCloudOwnerId(ownerId)) {
+    await updateDoc(doc(getFirestoreDb(), "notes", noteId), {
+      title: payload.title,
+      lines: payload.lines,
+      updatedAt: serverTimestamp(),
+    });
+    return;
+  }
+
   const db = await openDb();
   const tx = db.transaction(NOTES_STORE, "readwrite");
   const store = tx.objectStore(NOTES_STORE);
@@ -358,6 +418,12 @@ export async function updateNote(
 export async function deleteNote(noteId: string, ownerId: string): Promise<void> {
   if (typeof window === "undefined") return;
   await ensureLocalStorageMigration();
+
+  if (isCloudOwnerId(ownerId)) {
+    await deleteDoc(doc(getFirestoreDb(), "notes", noteId));
+    return;
+  }
+
   const db = await openDb();
   const tx = db.transaction(NOTES_STORE, "readwrite");
   const store = tx.objectStore(NOTES_STORE);
@@ -371,12 +437,98 @@ export function getLocalOwnerId(): string {
   return LOCAL_OWNER;
 }
 
+/** 管理者クラウド同期中（ログイン済み）の ownerId かどうか */
 export function isCloudOwnerId(ownerId: string): boolean {
-  void ownerId;
-  return false;
+  return isAdminCloudSyncAvailable() && isFirebaseConfigured() && ownerId !== LOCAL_OWNER;
 }
 
+const MIGRATE_TIMEOUT_MS = 60_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error(message)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(id);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(id);
+        reject(e);
+      },
+    );
+  });
+}
+
+let migrateInFlight: Promise<{ migrated: number }> | null = null;
+let migrateInFlightUid: string | null = null;
+
+/**
+ * 未ログイン時に IndexedDB に溜めたノートを、ログイン後の UID 配下の Firestore に取り込む。
+ * 成功後、該当エントリは IndexedDB から削除する。
+ */
 export async function migrateLocalNotesToFirebase(uid: string): Promise<{ migrated: number }> {
-  void uid;
-  return { migrated: 0 };
+  if (!isFirebaseConfigured()) return { migrated: 0 };
+  if (migrateInFlight && migrateInFlightUid === uid) {
+    return migrateInFlight;
+  }
+  migrateInFlightUid = uid;
+  const run = withTimeout(
+    runMigrateLocalNotesToFirebaseBody(uid),
+    MIGRATE_TIMEOUT_MS,
+    `ローカルメモの同期が ${MIGRATE_TIMEOUT_MS / 1000} 秒以内に完了しませんでした。接続を確認のうえ、再ログインを試してください。`,
+  );
+  migrateInFlight = run.finally(() => {
+    migrateInFlight = null;
+    migrateInFlightUid = null;
+  });
+  return migrateInFlight;
+}
+
+async function runMigrateLocalNotesToFirebaseBody(uid: string): Promise<{ migrated: number }> {
+  await ensureLocalStorageMigration();
+  const db = await openDb();
+  const tx = db.transaction(NOTES_STORE, "readonly");
+  const all = (await idbRequest(tx.objectStore(NOTES_STORE).getAll()))
+    .map((row) => sanitizeStoredNote(row))
+    .filter((n): n is StoredNote => n !== null);
+  await idbTxDone(tx);
+
+  const toMigrate = all.filter((n) => n.ownerId === LOCAL_OWNER);
+  if (toMigrate.length === 0) return { migrated: 0 };
+
+  const firestore = getFirestoreDb();
+  const col = collection(firestore, "notes");
+  const CHUNK = 400;
+  let done = 0;
+
+  for (let i = 0; i < toMigrate.length; i += CHUNK) {
+    const slice = toMigrate.slice(i, i + CHUNK);
+    const batch = writeBatch(firestore);
+    for (const n of slice) {
+      const created =
+        typeof n.createdAt === "number" && Number.isFinite(n.createdAt) ? n.createdAt : Date.now();
+      const updated =
+        typeof n.updatedAt === "number" && Number.isFinite(n.updatedAt) ? n.updatedAt : Date.now();
+      const ref = doc(col);
+      batch.set(ref, {
+        ownerId: uid,
+        title: typeof n.title === "string" ? n.title : "",
+        lines: normalizeLines(n.lines),
+        createdAt: Timestamp.fromMillis(created),
+        updatedAt: Timestamp.fromMillis(updated),
+      });
+    }
+    await batch.commit();
+
+    const delTx = db.transaction(NOTES_STORE, "readwrite");
+    const store = delTx.objectStore(NOTES_STORE);
+    for (const n of slice) {
+      store.delete(n.id);
+    }
+    await idbTxDone(delTx);
+    done += slice.length;
+  }
+
+  return { migrated: done };
 }

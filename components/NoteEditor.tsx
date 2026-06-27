@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdBanner from "@/components/AdBanner";
+import AuthToolbar from "@/components/AuthToolbar";
+import LocalMigrationErrorBanner from "@/components/LocalMigrationErrorBanner";
 import { trackEvent } from "@/lib/analytics/gtag";
 import AppHeader from "@/components/AppHeader";
+import { useNoteAuth } from "@/lib/hooks/useNoteAuth";
 import {
   createNote,
   deleteNote,
   fetchNote,
-  getLocalOwnerId,
   updateNote,
 } from "@/lib/note/repository";
 import type { NoteLine } from "@/lib/types/note";
@@ -58,6 +60,7 @@ type Props = {
 
 export default function NoteEditor({ mode, initialNoteId }: Props) {
   const router = useRouter();
+  const auth = useNoteAuth();
   const [title, setTitle] = useState("");
   const [lines, setLines] = useState<InternalLine[]>(() => [newEmptyLine()]);
   const [remoteId, setRemoteId] = useState<string | null>(null);
@@ -75,7 +78,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   titleRef.current = title;
   remoteIdRef.current = remoteId;
 
-  const ownerId = getLocalOwnerId();
+  const ownerId = auth.status === "ready" && auth.ownerId ? auth.ownerId : null;
 
   const focusLine = useCallback((index: number, caret?: number) => {
     requestAnimationFrame(() => {
@@ -122,6 +125,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
 
   useEffect(() => {
     if (mode !== "edit" || !initialNoteId) return;
+    if (auth.status !== "ready" || !ownerId) return;
 
     let cancelled = false;
     setLoadingNote(true);
@@ -147,9 +151,10 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [mode, initialNoteId, ownerId]);
+  }, [mode, initialNoteId, ownerId, auth.status]);
 
   const persist = useCallback(async (): Promise<boolean> => {
+    if (!ownerId) return false;
     const t = titleRef.current;
     const ls = linesSnapshotRef.current;
     let id = remoteIdRef.current;
@@ -201,12 +206,13 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
   }, [persist]);
 
   useEffect(() => {
+    if (!ownerId) return;
     if (mode === "edit" && loadingNote) return;
     schedulePersist();
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [title, lines, mode, loadingNote, schedulePersist]);
+  }, [title, lines, mode, loadingNote, ownerId, schedulePersist]);
 
   useEffect(() => {
     return () => {
@@ -356,23 +362,54 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
     setContinueError(null);
   }, [lines, title]);
 
+  const headerEnd = (
+    <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2.5">
+      <AuthToolbar />
+      <div className="h-4 w-px shrink-0 self-center bg-teal-800/50" aria-hidden="true" />
+      <Link
+        href="/notes?filter=unchecked"
+        title="保存したメモの一覧"
+        className="rounded-md px-2 py-1.5 text-sm font-medium text-teal-100 hover:bg-teal-900/50 sm:px-3"
+      >
+        メモ一覧
+      </Link>
+    </div>
+  );
+
+  const statusBanner = useMemo(() => {
+    if (auth.status === "loading") {
+      return (
+        <p className="rounded-md bg-teal-900/40 px-3 py-2 text-sm text-teal-100">クラウド同期の準備中…</p>
+      );
+    }
+    if (auth.status === "migrating") {
+      return (
+        <p className="rounded-md bg-teal-900/40 px-3 py-2 text-sm text-teal-100">
+          この端末のメモをクラウドへ同期しています…
+        </p>
+      );
+    }
+    if (auth.status === "error") {
+      return (
+        <p className="rounded-md bg-red-950/50 px-3 py-2 text-sm text-red-100">{auth.message}</p>
+      );
+    }
+    if (auth.isCloud) {
+      return (
+        <p className="text-xs text-zinc-500">
+          クラウド同期中 — 変更は自動保存されます（空にすると保存されません）
+        </p>
+      );
+    }
+    return (
+      <p className="text-xs text-zinc-500">この端末内のみに保存されます（登録不要）</p>
+    );
+  }, [auth]);
+
   if (loadError) {
     return (
       <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
-        <AppHeader
-          showPortalLink
-          end={
-            <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
-              <Link
-                href="/notes?filter=unchecked"
-                title="保存したメモの一覧"
-                className="text-sm text-teal-200 hover:underline"
-              >
-                メモ一覧
-              </Link>
-            </div>
-          }
-        />
+        <AppHeader showPortalLink end={headerEnd} />
         <main className="mx-auto w-full min-w-0 max-w-lg px-4 py-8">
           <p className="text-red-200">{loadError}</p>
           <Link href="/notes?filter=unchecked" className="mt-4 inline-block text-teal-300 underline">
@@ -385,21 +422,9 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
 
   return (
     <div className="min-h-dvh w-full min-w-0 overflow-x-hidden bg-zinc-950 text-zinc-100">
-      <AppHeader
-        showPortalLink
-        end={
-          <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2.5">
-            <Link
-              href="/notes?filter=unchecked"
-              title="保存したメモの一覧"
-              className="rounded-md px-2 py-1.5 text-sm font-medium text-teal-100 hover:bg-teal-900/50 sm:px-3"
-            >
-              メモ一覧
-            </Link>
-          </div>
-        }
-      />
+      <AppHeader showPortalLink end={headerEnd} />
       <main className="mx-auto w-full min-w-0 max-w-lg px-4 pb-16 pt-4">
+        <LocalMigrationErrorBanner />
         {loadingNote ? (
           <p className="text-zinc-400">読み込み中…</p>
         ) : (
@@ -469,9 +494,7 @@ export default function NoteEditor({ mode, initialNoteId }: Props) {
                 ) : null}
               </div>
             )}
-            <div className="mt-4">
-              <p className="text-xs text-zinc-500">変更はこの端末に自動保存されます（空にすると保存されません）</p>
-            </div>
+            <div className="mt-4">{statusBanner}</div>
             <AdBanner />
           </>
         )}

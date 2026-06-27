@@ -4,6 +4,7 @@ import Script from "next/script";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
 import PwaResumeHandler from "@/components/PwaResumeHandler";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import { NoteAuthProvider } from "@/lib/contexts/NoteAuthContext";
 import "./globals.css";
 
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim() ?? "";
@@ -75,7 +76,7 @@ gtag("config", ${JSON.stringify(GA_MEASUREMENT_ID)});
         <ServiceWorkerRegister />
         <PwaResumeHandler />
         <AppErrorBoundary>
-          {children}
+          <NoteAuthProvider>{children}</NoteAuthProvider>
         </AppErrorBoundary>
       </body>
     </html>

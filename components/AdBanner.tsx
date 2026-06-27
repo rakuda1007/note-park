@@ -27,6 +27,7 @@ import {
   shouldDisableAdsInIosPwa,
   verifyAdminPin,
 } from "@/lib/ads/preferences";
+import { notifyAdminModeChanged } from "@/lib/admin/cloud-sync";
 import { setUserProperties, trackEvent } from "@/lib/analytics/gtag";
 
 declare global {
@@ -71,7 +72,7 @@ export default function AdBanner() {
     setHiddenByUser(isAdsHiddenByUser());
     setSettingsEnabled(isAdSettingsEnabledForCurrentUser());
     if (isAdminModeEnabled()) {
-      setAdminMessage("この端末で管理者モードが有効です。");
+      setAdminMessage("管理者モード有効 — 広告は通常ユーザーと同様に表示されます。");
     }
     setIosPwaBlocked(disableAdsInIosPwa && isIosStandalonePwa());
     setReady(true);
@@ -181,14 +182,18 @@ export default function AdBanner() {
 
       {canControlVisibility ? (
         <div className="rounded-md border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-400">
-          <p className="mb-1 text-zinc-300">広告設定</p>
-          <p className="text-zinc-500">現在の状態: {getAdsDisplayStatusLabel(displayStatus)}</p>
+          <p className="mb-1 text-zinc-300">管理者パネル</p>
+          <p className="text-zinc-500">現在の広告状態: {getAdsDisplayStatusLabel(displayStatus)}</p>
+          <p className="mt-1 text-zinc-500">
+            クラウド同期はヘッダーの「クラウド同期」からログインできます。広告の表示／非表示は下のチェックで別途切り替えます。
+          </p>
           <div className="mt-2">
             <button
               type="button"
               className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
               onClick={() => {
                 setAdminModeEnabled(false);
+                notifyAdminModeChanged();
                 setSettingsEnabled(false);
                 setAdminMessage("管理者モードを解除しました。");
               }}
@@ -196,7 +201,22 @@ export default function AdBanner() {
               管理者モードを解除
             </button>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="mt-3 border-t border-zinc-800/80 pt-3">
+            <p className="mb-2 text-zinc-300">広告プレビュー設定</p>
+            <label className="inline-flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={hiddenByUser}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setHiddenByUser(next);
+                  setAdsHiddenByUser(next);
+                }}
+              />
+              <span>広告を非表示にする（プレビュー用・一般ユーザーには影響しません）</span>
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-zinc-800/80 pt-3">
             <button
               type="button"
               className="rounded-md border border-teal-700/50 px-2 py-1 text-xs text-teal-200 hover:bg-teal-900/40"
@@ -259,19 +279,7 @@ export default function AdBanner() {
               </p>
             </div>
           ) : null}
-          <label className="inline-flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              checked={hiddenByUser}
-              onChange={(e) => {
-                const next = e.target.checked;
-                setHiddenByUser(next);
-                setAdsHiddenByUser(next);
-              }}
-            />
-            <span>広告を非表示にする（開発/限定ユーザー設定）</span>
-          </label>
-          <p className="mt-1 text-zinc-500">広告サイズ: {adSize.label}</p>
+          <p className="mt-2 text-zinc-500">広告サイズ: {adSize.label}</p>
           {forceHidden ? <p className="mt-1 text-amber-300">環境設定により広告は常に非表示です。</p> : null}
           {iosPwaBlocked ? (
             <p className="mt-1 text-zinc-500">iOS のホーム画面アプリでは広告を抑止しています。</p>
@@ -281,8 +289,8 @@ export default function AdBanner() {
         </div>
       ) : (
         <div className="rounded-md border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-500">
-          <p className="text-zinc-300">広告設定</p>
-          <p className="mt-1">現在の状態: {getAdsDisplayStatusLabel(displayStatus)}</p>
+          <p className="text-zinc-300">管理者パネル</p>
+          <p className="mt-1">現在の広告状態: {getAdsDisplayStatusLabel(displayStatus)}</p>
           <div className="mt-2">
             <button
               type="button"
@@ -293,7 +301,9 @@ export default function AdBanner() {
             </button>
             {adminOpen ? (
               <div className="mt-2 space-y-2 rounded-md border border-zinc-700/70 bg-zinc-900/70 p-2">
-                <p className="text-zinc-400">PINを入力すると、この端末で広告設定を変更できます。</p>
+                <p className="text-zinc-400">
+                  PIN を入力すると、この端末でクラウド同期と広告プレビュー設定が使えます。PIN 入力後も広告は表示されたままです。
+                </p>
                 <input
                   type="password"
                   className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-100 outline-none focus:border-teal-600"
@@ -314,7 +324,10 @@ export default function AdBanner() {
                           setAdminMessage(result.message);
                           if (!result.ok) return;
                           setAdminModeEnabled(true);
+                          notifyAdminModeChanged();
                           setSettingsEnabled(true);
+                          setAdsHiddenByUser(false);
+                          setHiddenByUser(false);
                           setAdminPin("");
                         })
                         .finally(() => setAdminBusy(false));
