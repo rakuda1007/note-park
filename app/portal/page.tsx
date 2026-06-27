@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import PortalDemo from "./PortalDemo";
+import PwaMaintenanceTools from "./PwaMaintenanceTools";
 
 export const metadata: Metadata = {
   title: "Note Park — 思考を、1秒も待たせない",
@@ -128,7 +129,8 @@ export default function PortalPage() {
       {/* デモ */}
       <section className="border-b border-slate-200/60 bg-slate-50/80 py-12 md:py-16">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="mx-auto max-w-2xl">
+          <div className="mx-auto max-w-2xl space-y-6">
+            <PwaMaintenanceTools />
             <PortalDemo />
           </div>
         </div>

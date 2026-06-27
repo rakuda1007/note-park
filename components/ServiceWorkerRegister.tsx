@@ -1,16 +1,34 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  checkForAppUpdate,
+  fetchAppBuildInfo,
+  forceAppUpdate,
+  setKnownAppBuild,
+} from "@/lib/pwa/app-update";
 
 const SKIP_WAITING_MSG = { type: "SKIP_WAITING" as const };
 
 export default function ServiceWorkerRegister() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateReason, setUpdateReason] = useState<"sw" | "version" | null>(null);
   const pendingReloadRef = useRef(false);
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
+  const runVersionCheck = async () => {
+    const result = await checkForAppUpdate();
+    if (result.updateAvailable) {
+      setUpdateAvailable(true);
+      setUpdateReason("version");
+    }
+  };
+
   useEffect(() => {
-    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+      void runVersionCheck();
+      return;
+    }
 
     const onControllerChange = () => {
       if (!pendingReloadRef.current) return;
@@ -28,7 +46,10 @@ export default function ServiceWorkerRegister() {
         registrationRef.current = reg;
 
         const markIfWaiting = () => {
-          if (reg.waiting) setUpdateAvailable(true);
+          if (reg.waiting) {
+            setUpdateAvailable(true);
+            setUpdateReason("sw");
+          }
         };
         markIfWaiting();
 
@@ -41,15 +62,22 @@ export default function ServiceWorkerRegister() {
               navigator.serviceWorker.controller
             ) {
               setUpdateAvailable(true);
+              setUpdateReason("sw");
             }
           });
         });
 
         const checkForUpdate = () => {
           void reg.update().then(() => {
-            if (reg.waiting) setUpdateAvailable(true);
+            if (reg.waiting) {
+              setUpdateAvailable(true);
+              setUpdateReason("sw");
+            }
           });
+          void runVersionCheck();
         };
+
+        checkForUpdate();
 
         const onVisible = () => {
           if (document.visibilityState === "visible") checkForUpdate();
@@ -62,7 +90,7 @@ export default function ServiceWorkerRegister() {
         removeFocus = () => window.removeEventListener("focus", checkForUpdate);
       })
       .catch(() => {
-        /* 開発時や非 HTTPS では失敗しうる */
+        void runVersionCheck();
       });
 
     return () => {
@@ -75,11 +103,16 @@ export default function ServiceWorkerRegister() {
     };
   }, []);
 
-  const applyUpdate = () => {
+  const applyUpdate = async () => {
     const reg = registrationRef.current;
-    if (!reg?.waiting) return;
-    pendingReloadRef.current = true;
-    reg.waiting.postMessage(SKIP_WAITING_MSG);
+    if (reg?.waiting) {
+      pendingReloadRef.current = true;
+      reg.waiting.postMessage(SKIP_WAITING_MSG);
+      return;
+    }
+    const remote = await fetchAppBuildInfo();
+    if (remote?.version) setKnownAppBuild(remote.version);
+    await forceAppUpdate();
   };
 
   const dismiss = () => setUpdateAvailable(false);
@@ -93,7 +126,9 @@ export default function ServiceWorkerRegister() {
     >
       <div className="mx-auto flex max-w-lg flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <p className="text-sm text-zinc-200">
-          新しいバージョンがあります。更新すると最新の機能が反映されます。
+          {updateReason === "version"
+            ? "新しい版が公開されています。更新すると最新の機能（管理者PINなど）が使えます。"
+            : "新しいバージョンがあります。更新すると最新の機能が反映されます。"}
         </p>
         <div className="flex shrink-0 gap-2">
           <button
@@ -105,7 +140,7 @@ export default function ServiceWorkerRegister() {
           </button>
           <button
             type="button"
-            onClick={applyUpdate}
+            onClick={() => void applyUpdate()}
             className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-500"
           >
             更新する

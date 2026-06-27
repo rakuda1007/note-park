@@ -306,10 +306,13 @@ export default function AdBanner() {
                 </p>
                 <input
                   type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
                   className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-100 outline-none focus:border-teal-600"
                   value={adminPin}
                   onChange={(e) => setAdminPin(e.target.value)}
-                  placeholder="管理者PIN"
+                  placeholder="管理者PIN（半角数字）"
                 />
                 <div className="flex flex-wrap gap-2">
                   <button

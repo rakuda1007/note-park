@@ -1,4 +1,4 @@
-/* Note Park — Service Worker（PWA のインストール要件として fetch を処理） */
+/* Note Park — Service Worker v2（PWA 更新検知用。内容を変えるとクライアントが更新を検知する） */
 /* 更新時はクライアントから SKIP_WAITING が送られるまで待機し、強制再読み込みで反映しやすくする */
 
 self.addEventListener("install", () => {

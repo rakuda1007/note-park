@@ -87,6 +87,11 @@ function getAdminPinSha256(): string {
   return (process.env.NEXT_PUBLIC_ADMIN_PIN_SHA256 ?? "").replace(/^\uFEFF/, "").trim().toLowerCase();
 }
 
+function normalizeAdminPinInput(pin: string): string {
+  // モバイルで全角数字が混ざるとハッシュがずれるため NFKC で半角に揃える
+  return pin.normalize("NFKC").trim().replace(/\s/g, "");
+}
+
 async function sha256Hex(text: string): Promise<string> {
   const bytes = new TextEncoder().encode(text);
   const hash = await crypto.subtle.digest("SHA-256", bytes);
@@ -96,7 +101,7 @@ async function sha256Hex(text: string): Promise<string> {
 }
 
 export async function verifyAdminPin(pin: string): Promise<{ ok: boolean; message: string }> {
-  const normalized = pin.trim();
+  const normalized = normalizeAdminPinInput(pin);
   if (!normalized) {
     return { ok: false, message: "PINを入力してください。" };
   }
@@ -117,7 +122,14 @@ export async function verifyAdminPin(pin: string): Promise<{ ok: boolean; messag
   }
   const actual = await sha256Hex(normalized);
   if (actual !== expected) {
-    return { ok: false, message: "PINが一致しません。" };
+    const standalone =
+      isClient() &&
+      (window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as Navigator & { standalone?: boolean }).standalone === true);
+    const pwaHint = standalone
+      ? " ホーム画面アプリは古い版が残っていることがあります。下の「更新する」が出ていれば押すか、一度アプリを削除して Safari/Chrome から開き直してください。"
+      : "";
+    return { ok: false, message: `PINが一致しません。半角数字で入力してください。${pwaHint}` };
   }
   return { ok: true, message: "管理者モードを有効化しました。" };
 }

@@ -532,3 +532,25 @@ async function runMigrateLocalNotesToFirebaseBody(uid: string): Promise<{ migrat
 
   return { migrated: done };
 }
+
+/** この端末の IndexedDB にあるノートをすべて JSON で書き出す（バックアップ用） */
+export async function exportAllLocalNotesBackup(): Promise<string> {
+  if (typeof window === "undefined") return "[]";
+  await ensureLocalStorageMigration();
+  const db = await openDb();
+  const tx = db.transaction(NOTES_STORE, "readonly");
+  const notes = (await idbRequest(tx.objectStore(NOTES_STORE).getAll()))
+    .map((row) => sanitizeStoredNote(row))
+    .filter((n): n is StoredNote => n !== null);
+  await idbTxDone(tx);
+  return JSON.stringify(
+    {
+      exportedAt: new Date().toISOString(),
+      app: "note-park",
+      count: notes.length,
+      notes,
+    },
+    null,
+    2,
+  );
+}
