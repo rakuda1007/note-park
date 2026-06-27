@@ -31,7 +31,7 @@ function readFilterFromLocation(): LineFilter {
 
 type MoveDirection = "top" | "up" | "down" | "bottom";
 
-/** 表示中のノートだけの順序を変え、非表示ノートの相対位置は維持する */
+/** 表示中のノート同士の順序を変え、移動は隣の表示ノートの直前/直後へ挿入する */
 function reorderItemsWithinVisible(
   allItems: NoteListItem[],
   visibleIds: string[],
@@ -41,41 +41,52 @@ function reorderItemsWithinVisible(
   const visibleIdx = visibleIds.indexOf(noteId);
   if (visibleIdx < 0) return null;
 
-  let targetVisibleIdx: number;
-  switch (direction) {
-    case "top":
-      targetVisibleIdx = 0;
-      break;
-    case "up":
-      targetVisibleIdx = visibleIdx - 1;
-      break;
-    case "down":
-      targetVisibleIdx = visibleIdx + 1;
-      break;
-    case "bottom":
-      targetVisibleIdx = visibleIds.length - 1;
-      break;
-  }
+  const isFirst = visibleIdx === 0;
+  const isLast = visibleIdx === visibleIds.length - 1;
   if (
-    targetVisibleIdx < 0 ||
-    targetVisibleIdx >= visibleIds.length ||
-    targetVisibleIdx === visibleIdx
+    (direction === "top" && isFirst) ||
+    (direction === "up" && isFirst) ||
+    (direction === "down" && isLast) ||
+    (direction === "bottom" && isLast)
   ) {
     return null;
   }
 
-  const newVisibleIds = [...visibleIds];
-  const [movedId] = newVisibleIds.splice(visibleIdx, 1);
-  newVisibleIds.splice(targetVisibleIdx, 0, movedId);
+  const movedIdx = allItems.findIndex((n) => n.id === noteId);
+  if (movedIdx < 0) return null;
 
-  const visibleSet = new Set(visibleIds);
-  const byId = new Map(allItems.map((n) => [n.id, n]));
-  let cursor = 0;
-  return allItems.map((item) => {
-    if (!visibleSet.has(item.id)) return item;
-    const id = newVisibleIds[cursor++];
-    return byId.get(id) ?? item;
-  });
+  const next = [...allItems];
+  const [moved] = next.splice(movedIdx, 1);
+
+  let insertIdx: number;
+  switch (direction) {
+    case "top": {
+      const anchorId = visibleIds[0];
+      insertIdx = next.findIndex((n) => n.id === anchorId);
+      break;
+    }
+    case "up": {
+      const anchorId = visibleIds[visibleIdx - 1];
+      insertIdx = next.findIndex((n) => n.id === anchorId);
+      break;
+    }
+    case "down": {
+      const anchorId = visibleIds[visibleIdx + 1];
+      const anchorIdx = next.findIndex((n) => n.id === anchorId);
+      insertIdx = anchorIdx < 0 ? -1 : anchorIdx + 1;
+      break;
+    }
+    case "bottom": {
+      const anchorId = visibleIds[visibleIds.length - 1];
+      const anchorIdx = next.findIndex((n) => n.id === anchorId);
+      insertIdx = anchorIdx < 0 ? -1 : anchorIdx + 1;
+      break;
+    }
+  }
+  if (insertIdx < 0) return null;
+
+  next.splice(insertIdx, 0, moved);
+  return next;
 }
 
 export default function NotesListPage() {
