@@ -1,6 +1,6 @@
 "use client";
 
-import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
@@ -18,10 +18,11 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 } as const;
 
+const DEFAULT_APP_NAME = "[DEFAULT]";
+
 function getOrInitApp(): FirebaseApp {
-  if (getApps().length > 0) {
-    return getApp();
-  }
+  const existing = getApps().find((app) => app.name === DEFAULT_APP_NAME);
+  if (existing) return existing;
   return initializeApp(firebaseConfig);
 }
 
