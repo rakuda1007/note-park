@@ -29,6 +29,55 @@ function readFilterFromLocation(): LineFilter {
   return parseLineFilter(new URLSearchParams(window.location.search).get("filter"));
 }
 
+type MoveDirection = "top" | "up" | "down" | "bottom";
+
+/** 表示中のノートだけの順序を変え、非表示ノートの相対位置は維持する */
+function reorderItemsWithinVisible(
+  allItems: NoteListItem[],
+  visibleIds: string[],
+  noteId: string,
+  direction: MoveDirection,
+): NoteListItem[] | null {
+  const visibleIdx = visibleIds.indexOf(noteId);
+  if (visibleIdx < 0) return null;
+
+  let targetVisibleIdx: number;
+  switch (direction) {
+    case "top":
+      targetVisibleIdx = 0;
+      break;
+    case "up":
+      targetVisibleIdx = visibleIdx - 1;
+      break;
+    case "down":
+      targetVisibleIdx = visibleIdx + 1;
+      break;
+    case "bottom":
+      targetVisibleIdx = visibleIds.length - 1;
+      break;
+  }
+  if (
+    targetVisibleIdx < 0 ||
+    targetVisibleIdx >= visibleIds.length ||
+    targetVisibleIdx === visibleIdx
+  ) {
+    return null;
+  }
+
+  const newVisibleIds = [...visibleIds];
+  const [movedId] = newVisibleIds.splice(visibleIdx, 1);
+  newVisibleIds.splice(targetVisibleIdx, 0, movedId);
+
+  const visibleSet = new Set(visibleIds);
+  const byId = new Map(allItems.map((n) => [n.id, n]));
+  let cursor = 0;
+  return allItems.map((item) => {
+    if (!visibleSet.has(item.id)) return item;
+    const id = newVisibleIds[cursor++];
+    return byId.get(id) ?? item;
+  });
+}
+
 export default function NotesListPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -189,15 +238,12 @@ export default function NotesListPage() {
   const canReorder = !listSearch.trim();
 
   const handleMoveNote = useCallback(
-    async (noteId: string, direction: "up" | "down") => {
+    async (noteId: string, direction: MoveDirection) => {
       if (!ownerId || !canReorder) return;
-      const idx = items.findIndex((n) => n.id === noteId);
-      if (idx < 0) return;
-      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (targetIdx < 0 || targetIdx >= items.length) return;
+      const visibleIds = filteredItems.map((n) => n.id);
+      const next = reorderItemsWithinVisible(items, visibleIds, noteId, direction);
+      if (!next) return;
 
-      const next = [...items];
-      [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
       const ordered = next.map((n, index) => ({ ...n, sortOrder: index }));
       setItems(ordered);
       setReorderingId(noteId);
@@ -213,7 +259,7 @@ export default function NotesListPage() {
         setReorderingId(null);
       }
     },
-    [canReorder, items, loadList, ownerId],
+    [canReorder, filteredItems, items, loadList, ownerId],
   );
 
   const handleDelete = useCallback(
@@ -351,9 +397,14 @@ export default function NotesListPage() {
             ) : (
               <ul className="divide-y divide-teal-900/40 overflow-x-hidden rounded-xl border border-teal-900/40 bg-teal-950/20">
                 {filteredItems.map((n) => {
-                  const itemIndex = items.findIndex((it) => it.id === n.id);
-                  const canMoveUp = canReorder && itemIndex > 0;
-                  const canMoveDown = canReorder && itemIndex >= 0 && itemIndex < items.length - 1;
+                  const filteredIndex = filteredItems.findIndex((it) => it.id === n.id);
+                  const canMoveUp = canReorder && filteredIndex > 0;
+                  const canMoveDown =
+                    canReorder &&
+                    filteredIndex >= 0 &&
+                    filteredIndex < filteredItems.length - 1;
+                  const reorderBusy =
+                    reorderingId === n.id || deletingId === n.id || togglingId === n.id;
                   const titleText = (n.title ?? "").trim();
                   const previewText = (n.preview ?? "").trim();
                   const hasBody = previewText.length > 0;
@@ -422,45 +473,56 @@ export default function NotesListPage() {
                         </div>
                       </Link>
                       {canReorder ? (
-                        <div className="flex w-9 shrink-0 flex-col items-stretch self-stretch border-l border-teal-900/40 sm:w-10">
-                          <button
-                            type="button"
-                            disabled={
-                              !canMoveUp ||
-                              reorderingId === n.id ||
-                              deletingId === n.id ||
-                              togglingId === n.id
-                            }
-                            className="flex flex-1 items-center justify-center text-sm text-teal-200 hover:bg-teal-900/40 disabled:cursor-not-allowed disabled:opacity-30"
-                            aria-label={`「${labelForA11y}」を上へ`}
-                            title="上へ"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              void handleMoveNote(n.id, "up");
-                            }}
-                          >
-                            ↑
-                          </button>
-                          <button
-                            type="button"
-                            disabled={
-                              !canMoveDown ||
-                              reorderingId === n.id ||
-                              deletingId === n.id ||
-                              togglingId === n.id
-                            }
-                            className="flex flex-1 items-center justify-center border-t border-teal-900/40 text-sm text-teal-200 hover:bg-teal-900/40 disabled:cursor-not-allowed disabled:opacity-30"
-                            aria-label={`「${labelForA11y}」を下へ`}
-                            title="下へ"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              void handleMoveNote(n.id, "down");
-                            }}
-                          >
-                            ↓
-                          </button>
+                        <div
+                          className="grid w-8 shrink-0 grid-cols-2 self-stretch border-l border-teal-900/40 sm:w-9"
+                          aria-label={`「${labelForA11y}」の並び替え`}
+                        >
+                          {(
+                            [
+                              {
+                                dir: "top" as const,
+                                label: "先頭へ",
+                                glyph: "⏫",
+                                enabled: canMoveUp,
+                              },
+                              {
+                                dir: "up" as const,
+                                label: "上へ",
+                                glyph: "↑",
+                                enabled: canMoveUp,
+                              },
+                              {
+                                dir: "down" as const,
+                                label: "下へ",
+                                glyph: "↓",
+                                enabled: canMoveDown,
+                              },
+                              {
+                                dir: "bottom" as const,
+                                label: "末尾へ",
+                                glyph: "⏬",
+                                enabled: canMoveDown,
+                              },
+                            ] as const
+                          ).map(({ dir, label, glyph, enabled }, btnIdx) => (
+                            <button
+                              key={dir}
+                              type="button"
+                              disabled={!enabled || reorderBusy}
+                              className={`flex items-center justify-center text-[11px] leading-none text-teal-200 hover:bg-teal-900/40 disabled:cursor-not-allowed disabled:opacity-30 ${
+                                btnIdx >= 2 ? "border-t border-teal-900/40" : ""
+                              } ${btnIdx % 2 === 1 ? "border-l border-teal-900/40" : ""}`}
+                              aria-label={`「${labelForA11y}」を${label}`}
+                              title={label}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                void handleMoveNote(n.id, dir);
+                              }}
+                            >
+                              {glyph}
+                            </button>
+                          ))}
                         </div>
                       ) : null}
                       <div className="flex w-[4.5rem] shrink-0 items-stretch self-stretch border-l border-teal-900/40 sm:min-w-[5rem]">
