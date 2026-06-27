@@ -66,13 +66,11 @@ jobs:
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
           NEXT_PUBLIC_ADMIN_PIN_SHA256: ${{ secrets.NEXT_PUBLIC_ADMIN_PIN_SHA256 }}
 
-      - name: Write Firebase service account credentials
-        run: printf '%s' "$FIREBASE_SERVICE_ACCOUNT_NOTE_PARK" > "${RUNNER_TEMP}/firebase-sa.json"
-        env:
-          FIREBASE_SERVICE_ACCOUNT_NOTE_PARK: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NOTE_PARK }}
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NOTE_PARK }}
 
       # action-hosting-deploy は「同一バージョンの再リリース」で 400 になり誤失敗しやすいため、CLI で直接デプロイする
       - name: Deploy to Firebase Hosting
         run: npx firebase-tools@14.11.0 deploy --only hosting --project note-park --non-interactive
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
