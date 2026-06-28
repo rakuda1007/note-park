@@ -127,7 +127,7 @@ export default function ServiceWorkerRegister() {
       <div className="mx-auto flex max-w-lg flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <p className="text-sm text-zinc-200">
           {updateReason === "version"
-            ? "新しい版が公開されています。更新すると最新の機能（管理者PINなど）が使えます。"
+            ? "新しい版が公開されています。更新すると最新の機能が反映されます。"
             : "新しいバージョンがあります。更新すると最新の機能が反映されます。"}
         </p>
         <div className="flex shrink-0 gap-2">

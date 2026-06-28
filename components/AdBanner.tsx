@@ -20,11 +20,13 @@ import {
   isAdsEnabledByEnv,
   isAdsForceHiddenByEnv,
   isAdsHiddenByUser,
-  isAdSettingsEnabledForCurrentUser,
   isIosStandalonePwa,
+  clearAdSettingsUnlock,
   setAdminModeEnabled,
   setAdsHiddenByUser,
   shouldDisableAdsInIosPwa,
+  shouldShowAdminPanel,
+  shouldShowAdminPinEntry,
   verifyAdminPin,
 } from "@/lib/ads/preferences";
 import { notifyAdminModeChanged } from "@/lib/admin/cloud-sync";
@@ -40,7 +42,8 @@ export default function AdBanner() {
   const [ready, setReady] = useState(false);
   const [adFree, setAdFree] = useState(false);
   const [hiddenByUser, setHiddenByUser] = useState(false);
-  const [settingsEnabled, setSettingsEnabled] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showPinEntry, setShowPinEntry] = useState(false);
   const [scriptReady, setScriptReady] = useState(false);
   const [scriptFailed, setScriptFailed] = useState(false);
   const [noFillDetected, setNoFillDetected] = useState(false);
@@ -49,7 +52,6 @@ export default function AdBanner() {
   const [licenseKey, setLicenseKey] = useState("");
   const [licenseBusy, setLicenseBusy] = useState(false);
   const [licenseMessage, setLicenseMessage] = useState<string | null>(null);
-  const [adminOpen, setAdminOpen] = useState(false);
   const [adminPin, setAdminPin] = useState("");
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminMessage, setAdminMessage] = useState<string | null>(null);
@@ -70,7 +72,8 @@ export default function AdBanner() {
     setAdFree(isAdFreeUser());
     setLicenseKey(getSavedLicenseKey());
     setHiddenByUser(isAdsHiddenByUser());
-    setSettingsEnabled(isAdSettingsEnabledForCurrentUser());
+    setShowAdminPanel(shouldShowAdminPanel());
+    setShowPinEntry(shouldShowAdminPinEntry());
     if (isAdminModeEnabled()) {
       setAdminMessage("管理者モード有効 — 広告は通常ユーザーと同様に表示されます。");
     }
@@ -79,7 +82,6 @@ export default function AdBanner() {
   }, [disableAdsInIosPwa]);
 
   const shouldShowAds = adsEnabled && !adFree && !forceHidden && !hiddenByUser && !iosPwaBlocked;
-  const canControlVisibility = settingsEnabled;
   const displayStatus = !adsEnabled
     ? "disabled_by_env"
     : adFree
@@ -135,6 +137,33 @@ export default function AdBanner() {
     });
   }, [adFree, adSenseConfigured, adsEnabled, displayStatus, iosPwaBlocked, ready]);
 
+  const handleDisableAdminMode = () => {
+    setAdminModeEnabled(false);
+    clearAdSettingsUnlock();
+    notifyAdminModeChanged();
+    setShowAdminPanel(false);
+    setShowPinEntry(shouldShowAdminPinEntry());
+    setAdminMessage("管理者モードを解除しました。");
+  };
+
+  const handleVerifyPin = () => {
+    setAdminBusy(true);
+    setAdminMessage(null);
+    void verifyAdminPin(adminPin)
+      .then((result) => {
+        setAdminMessage(result.message);
+        if (!result.ok) return;
+        setAdminModeEnabled(true);
+        notifyAdminModeChanged();
+        setShowAdminPanel(true);
+        setShowPinEntry(false);
+        setAdsHiddenByUser(false);
+        setHiddenByUser(false);
+        setAdminPin("");
+      })
+      .finally(() => setAdminBusy(false));
+  };
+
   if (!ready) return null;
 
   return (
@@ -180,7 +209,7 @@ export default function AdBanner() {
         )
       ) : null}
 
-      {canControlVisibility ? (
+      {showAdminPanel ? (
         <div className="rounded-md border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-400">
           <p className="mb-1 text-zinc-300">管理者パネル</p>
           <p className="text-zinc-500">現在の広告状態: {getAdsDisplayStatusLabel(displayStatus)}</p>
@@ -191,12 +220,7 @@ export default function AdBanner() {
             <button
               type="button"
               className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
-              onClick={() => {
-                setAdminModeEnabled(false);
-                notifyAdminModeChanged();
-                setSettingsEnabled(false);
-                setAdminMessage("管理者モードを解除しました。");
-              }}
+              onClick={handleDisableAdminMode}
             >
               管理者モードを解除
             </button>
@@ -287,64 +311,40 @@ export default function AdBanner() {
           {scriptFailed ? <p className="mt-1 text-zinc-500">広告スクリプトの読み込みに失敗しました。</p> : null}
           {noFillDetected ? <p className="mt-1 text-zinc-500">この環境では広告の配信がありませんでした。</p> : null}
         </div>
-      ) : (
+      ) : showPinEntry ? (
         <div className="rounded-md border border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-500">
-          <p className="text-zinc-300">管理者パネル</p>
-          <p className="mt-1">現在の広告状態: {getAdsDisplayStatusLabel(displayStatus)}</p>
-          <div className="mt-2">
-            <button
-              type="button"
-              className="rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-800"
-              onClick={() => setAdminOpen((v) => !v)}
-            >
-              管理者モードを開く
-            </button>
-            {adminOpen ? (
-              <div className="mt-2 space-y-2 rounded-md border border-zinc-700/70 bg-zinc-900/70 p-2">
-                <p className="text-zinc-400">
-                  PIN を入力すると、この端末でクラウド同期と広告プレビュー設定が使えます。PIN 入力後も広告は表示されたままです。
-                </p>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  autoComplete="off"
-                  className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-100 outline-none focus:border-teal-600"
-                  value={adminPin}
-                  onChange={(e) => setAdminPin(e.target.value)}
-                  placeholder="管理者PIN（半角数字）"
-                />
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={adminBusy}
-                    className="rounded-md bg-teal-700 px-2 py-1 text-xs text-white disabled:opacity-50"
-                    onClick={() => {
-                      setAdminBusy(true);
-                      setAdminMessage(null);
-                      void verifyAdminPin(adminPin)
-                        .then((result) => {
-                          setAdminMessage(result.message);
-                          if (!result.ok) return;
-                          setAdminModeEnabled(true);
-                          notifyAdminModeChanged();
-                          setSettingsEnabled(true);
-                          setAdsHiddenByUser(false);
-                          setHiddenByUser(false);
-                          setAdminPin("");
-                        })
-                        .finally(() => setAdminBusy(false));
-                    }}
-                  >
-                    {adminBusy ? "確認中…" : "管理者モードを有効化"}
-                  </button>
-                </div>
-                {adminMessage ? <p className="text-xs text-zinc-300">{adminMessage}</p> : null}
-              </div>
-            ) : null}
+          <p className="text-zinc-300">管理者認証</p>
+          <div className="mt-2 space-y-2 rounded-md border border-zinc-700/70 bg-zinc-900/70 p-2">
+            <p className="text-zinc-400">
+              PIN を入力すると、この端末でクラウド同期と広告プレビュー設定が使えます。
+            </p>
+            <input
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="off"
+              className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-100 outline-none focus:border-teal-600"
+              value={adminPin}
+              onChange={(e) => setAdminPin(e.target.value)}
+              placeholder="PIN（半角数字）"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleVerifyPin();
+              }}
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={adminBusy}
+                className="rounded-md bg-teal-700 px-2 py-1 text-xs text-white disabled:opacity-50"
+                onClick={handleVerifyPin}
+              >
+                {adminBusy ? "確認中…" : "認証する"}
+              </button>
+            </div>
+            {adminMessage ? <p className="text-xs text-zinc-300">{adminMessage}</p> : null}
           </div>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

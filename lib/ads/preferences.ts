@@ -58,6 +58,29 @@ export function isAdSettingsUnlockedByQuery(): boolean {
   return params.get("adsettings") === "1";
 }
 
+/** 開発環境、または PIN 入力済みのときにフル管理者パネルを表示 */
+export function shouldShowAdminPanel(): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  return isAdminModeEnabled();
+}
+
+/**
+ * 本番で管理者 PIN 入力 UI を表示（URL に ?adsettings=1 があるときのみ）。
+ * 一般ユーザーには管理者 UI 自体を見せない。
+ */
+export function shouldShowAdminPinEntry(): boolean {
+  if (process.env.NODE_ENV !== "production") return false;
+  if (!isClient()) return false;
+  if (isAdminModeEnabled()) return false;
+  return isAdSettingsUnlockedByQuery();
+}
+
+/** 管理者モード解除時に呼ぶ（旧 unlock フラグの残りを消す） */
+export function clearAdSettingsUnlock(): void {
+  if (!isClient()) return;
+  window.localStorage.removeItem(ADS_SETTINGS_ENABLED_KEY);
+}
+
 export function isAdminModeEnabled(): boolean {
   if (!isClient()) return false;
   return window.localStorage.getItem(ADMIN_MODE_KEY) === "1";
@@ -134,18 +157,9 @@ export async function verifyAdminPin(pin: string): Promise<{ ok: boolean; messag
   return { ok: true, message: "管理者モードを有効化しました。" };
 }
 
+/** @deprecated shouldShowAdminPanel / shouldShowAdminPinEntry を使用 */
 export function isAdSettingsEnabledForCurrentUser(): boolean {
-  if (process.env.NODE_ENV !== "production") return true;
-  if (!isClient()) return false;
-  if (isAdminModeEnabled()) {
-    window.localStorage.setItem(ADS_SETTINGS_ENABLED_KEY, "1");
-    return true;
-  }
-  if (isAdSettingsUnlockedByQuery()) {
-    window.localStorage.setItem(ADS_SETTINGS_ENABLED_KEY, "1");
-    return true;
-  }
-  return window.localStorage.getItem(ADS_SETTINGS_ENABLED_KEY) === "1";
+  return shouldShowAdminPanel() || shouldShowAdminPinEntry();
 }
 
 export function isAdsHiddenByUser(): boolean {

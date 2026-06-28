@@ -64,11 +64,12 @@ export default function AuthPage() {
         <main className="mx-auto w-full min-w-0 max-w-md px-4 py-8">
           <h1 className="mb-2 text-lg font-medium text-zinc-100">クラウド同期（管理者専用）</h1>
           <p className="text-zinc-400">
-            この機能は管理者 PIN を入力した端末でのみ利用できます。メモ編集画面の「管理者モードを開く」から
-            PIN を入力してください。
+            この機能は管理者 PIN を入力した端末でのみ利用できます。メモ画面を{" "}
+            <code className="rounded bg-zinc-900 px-1 py-0.5 text-teal-200">?adsettings=1</code>{" "}
+            付きで開き、PIN を入力してください。
           </p>
-          <Link href="/" className="mt-6 inline-block text-sm text-teal-300 underline">
-            メモ画面に戻る
+          <Link href="/?adsettings=1" className="mt-6 inline-block text-sm text-teal-300 underline">
+            メモ画面を開く（管理者用）
           </Link>
         </main>
       </div>
