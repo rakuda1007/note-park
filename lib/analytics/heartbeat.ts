@@ -12,6 +12,8 @@ import { isFirebaseConfigured } from "@/lib/firebase/client";
 
 const HEARTBEAT_DAY_KEY = "note-park-heartbeat-day";
 const HEARTBEAT_OPT_OUT_KEY = "note-park-heartbeat-opt-out";
+/** usage_monthly 導入後、既に当日送信済みの端末でも1回だけ再送する */
+const HEARTBEAT_MONTHLY_MIGRATION_KEY = "note-park-heartbeat-monthly-v1-done";
 
 export type UsagePlatform = "web" | "pwa";
 
@@ -54,6 +56,26 @@ function alreadySentToday(): boolean {
   return window.localStorage.getItem(HEARTBEAT_DAY_KEY) === formatUsageDay(new Date());
 }
 
+function needsMonthlyMigrationHeartbeat(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(HEARTBEAT_MONTHLY_MIGRATION_KEY) !== "1";
+}
+
+/** HeartbeatSender: 月次集計導入後の再送が必要か */
+export function shouldAttemptMonthlyMigrationHeartbeat(): boolean {
+  return needsMonthlyMigrationHeartbeat();
+}
+
+function markMonthlyMigrationDone(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(HEARTBEAT_MONTHLY_MIGRATION_KEY, "1");
+}
+
+/** 当日送信済みでも、月次集計導入後の初回だけ再送を許可 */
+function shouldSkipHeartbeatToday(): boolean {
+  return alreadySentToday() && !needsMonthlyMigrationHeartbeat();
+}
+
 function markSentToday(): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(HEARTBEAT_DAY_KEY, formatUsageDay(new Date()));
@@ -65,7 +87,7 @@ function markSentToday(): void {
  */
 export function sendDailyHeartbeat(): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
-  if (!isFirebaseConfigured() || isHeartbeatOptedOut() || alreadySentToday()) {
+  if (!isFirebaseConfigured() || isHeartbeatOptedOut() || shouldSkipHeartbeatToday()) {
     return Promise.resolve();
   }
   if (heartbeatInFlight) return heartbeatInFlight;
@@ -73,9 +95,16 @@ export function sendDailyHeartbeat(): Promise<void> {
   heartbeatInFlight = runDailyHeartbeat()
     .then(() => {
       markSentToday();
+      if (needsMonthlyMigrationHeartbeat()) {
+        markMonthlyMigrationDone();
+      }
     })
     .catch((err: unknown) => {
-      console.warn("[note-park] heartbeat failed", err);
+      const detail =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code?: string }).code ?? "")
+          : "";
+      console.warn("[note-park] heartbeat failed", detail || err);
     })
     .finally(() => {
       heartbeatInFlight = null;
