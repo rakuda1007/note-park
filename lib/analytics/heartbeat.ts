@@ -36,6 +36,11 @@ export function formatUsageDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** UTC の YYYY-MM（月次ユニーク集計用） */
+export function formatUsageMonth(date: Date): string {
+  return date.toISOString().slice(0, 7);
+}
+
 export function detectUsagePlatform(): UsagePlatform {
   if (typeof window === "undefined") return "web";
   const standalone =
@@ -86,12 +91,17 @@ async function runDailyHeartbeat(): Promise<void> {
 
   const credential = auth.currentUser ?? (await signInAnonymously(auth)).user;
   const today = formatUsageDay(new Date());
+  const monthId = formatUsageMonth(new Date());
   const platform = detectUsagePlatform();
   const dailyRef = doc(db, "usage_daily", today);
   const presenceRef = doc(db, "usage_presence", credential.uid);
+  const monthlyRef = doc(db, "usage_monthly", monthId);
+  const monthlyUserRef = doc(db, "usage_monthly", monthId, "users", credential.uid);
 
   await runTransaction(db, async (tx) => {
     const dailySnap = await tx.get(dailyRef);
+    const monthlyUserSnap = await tx.get(monthlyUserRef);
+    const monthlySnap = monthlyUserSnap.exists() ? null : await tx.get(monthlyRef);
     const nextSessions = dailySnap.exists()
       ? Number(dailySnap.data().sessions ?? 0) + 1
       : 1;
@@ -117,6 +127,33 @@ async function runDailyHeartbeat(): Promise<void> {
       },
       { merge: true },
     );
+
+    if (!monthlyUserSnap.exists()) {
+      tx.set(monthlyUserRef, {
+        platform,
+        firstSeenAt: serverTimestamp(),
+        lastSeenAt: serverTimestamp(),
+      });
+      if (!monthlySnap?.exists()) {
+        tx.set(monthlyRef, {
+          uniqueUsers: 1,
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        tx.update(monthlyRef, {
+          uniqueUsers: Number(monthlySnap.data().uniqueUsers ?? 0) + 1,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    } else {
+      tx.update(monthlyUserRef, {
+        platform,
+        lastSeenAt: serverTimestamp(),
+      });
+      tx.update(monthlyRef, {
+        updatedAt: serverTimestamp(),
+      });
+    }
   });
 }
 

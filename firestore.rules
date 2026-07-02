@@ -1,12 +1,59 @@
 rules_version = '2';
 
-// usage_daily / usage_presence: 匿名統計用（メモ本文は保存しない）
+// usage_daily / usage_presence / usage_monthly: 匿名統計用（メモ本文は保存しない）
 // Firebase Console → 認証 → 匿名 を有効化すること
 
 service cloud.firestore {
   match /databases/{database}/documents {
     function isUsageDay(dayId) {
       return dayId.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function isUsageMonth(monthId) {
+      return monthId.matches('^\\d{4}-\\d{2}$');
+    }
+
+    match /usage_monthly/{monthId} {
+      allow get: if request.auth != null && isUsageMonth(monthId);
+      allow list: if false;
+      allow create: if request.auth != null
+        && isUsageMonth(monthId)
+        && request.resource.data.keys().hasOnly(['uniqueUsers', 'updatedAt'])
+        && request.resource.data.uniqueUsers == 1
+        && request.resource.data.updatedAt == request.time;
+      allow update: if request.auth != null
+        && isUsageMonth(monthId)
+        && (
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt'])
+            && request.resource.data.uniqueUsers == resource.data.uniqueUsers
+          )
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uniqueUsers', 'updatedAt'])
+            && request.resource.data.uniqueUsers == resource.data.uniqueUsers + 1
+          )
+        );
+      allow delete: if false;
+
+      match /users/{uid} {
+        allow get: if request.auth != null && request.auth.uid == uid;
+        allow list: if false;
+        allow create: if request.auth != null
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['platform', 'firstSeenAt', 'lastSeenAt'])
+          && isUsageMonth(monthId)
+          && request.resource.data.platform in ['web', 'pwa']
+          && request.resource.data.firstSeenAt == request.time
+          && request.resource.data.lastSeenAt == request.time;
+        allow update: if request.auth != null
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['platform', 'firstSeenAt', 'lastSeenAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['platform', 'lastSeenAt'])
+          && request.resource.data.platform in ['web', 'pwa']
+          && request.resource.data.lastSeenAt == request.time
+          && request.resource.data.firstSeenAt == resource.data.firstSeenAt;
+        allow delete: if false;
+      }
     }
 
     match /usage_daily/{dayId} {
